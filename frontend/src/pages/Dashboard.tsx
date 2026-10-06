@@ -138,6 +138,15 @@ export const Dashboard: React.FC = () => {
 
   useEffect(() => {
     loadDashboardData();
+
+    const handleDataSynced = () => {
+      loadDashboardData();
+    };
+
+    window.addEventListener('gestmag:data_synced', handleDataSynced);
+    return () => {
+      window.removeEventListener('gestmag:data_synced', handleDataSynced);
+    };
   }, []);
 
   const loadDashboardData = async () => {

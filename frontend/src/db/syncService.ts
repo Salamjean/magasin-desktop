@@ -202,113 +202,168 @@ class SyncService {
       }
 
       // 4. Categories
-      if (data.categories && Array.isArray(data.categories) && data.categories.length > 0) {
-        await db.categories.bulkPut(
-          data.categories.map((c: any) => ({
-            id: c.id,
-            name: c.name,
-            description: c.description || undefined,
-            icon: c.icon || 'Package',
-            color: c.color || '#0284c7',
-            synced: 1
-          }))
-        );
+      if (data.categories && Array.isArray(data.categories)) {
+        const remoteIds = new Set(data.categories.map((c: any) => Number(c.id)));
+        const localItems = await db.categories.toArray();
+        const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
+        if (toDelete.length > 0) {
+          await db.categories.bulkDelete(toDelete.map((item) => item.id!));
+        }
+        if (data.categories.length > 0) {
+          await db.categories.bulkPut(
+            data.categories.map((c: any) => ({
+              id: c.id,
+              name: c.name,
+              description: c.description || undefined,
+              icon: c.icon || 'Package',
+              color: c.color || '#0284c7',
+              synced: 1
+            }))
+          );
+        }
       }
 
       // 5. Suppliers
-      if (data.suppliers && Array.isArray(data.suppliers) && data.suppliers.length > 0) {
-        await db.suppliers.bulkPut(
-          data.suppliers.map((s: any) => ({
-            id: s.id,
-            name: s.name,
-            contact_name: s.contact_name || undefined,
-            email: s.email || undefined,
-            phone: s.phone || undefined,
-            address: s.address || undefined,
-            tax_number: s.tax_number || undefined,
-            notes: s.notes || undefined,
-            synced: 1
-          }))
-        );
+      if (data.suppliers && Array.isArray(data.suppliers)) {
+        const remoteIds = new Set(data.suppliers.map((s: any) => Number(s.id)));
+        const localItems = await db.suppliers.toArray();
+        const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
+        if (toDelete.length > 0) {
+          await db.suppliers.bulkDelete(toDelete.map((item) => item.id!));
+        }
+        if (data.suppliers.length > 0) {
+          await db.suppliers.bulkPut(
+            data.suppliers.map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              contact_name: s.contact_name || undefined,
+              email: s.email || undefined,
+              phone: s.phone || undefined,
+              address: s.address || undefined,
+              tax_number: s.tax_number || undefined,
+              notes: s.notes || undefined,
+              synced: 1
+            }))
+          );
+        }
       }
 
       // 6. Customers
-      if (data.customers && Array.isArray(data.customers) && data.customers.length > 0) {
-        await db.customers.bulkPut(
-          data.customers.map((c: any) => ({
-            id: c.id,
-            name: c.name,
-            phone: c.phone || undefined,
-            email: c.email || undefined,
-            address: c.address || undefined,
-            credit_limit: Number(c.credit_limit || 0),
-            current_debt: Number(c.current_debt || 0),
-            loyalty_points: Number(c.loyalty_points || 0),
-            synced: 1
-          }))
-        );
+      if (data.customers && Array.isArray(data.customers)) {
+        const remoteIds = new Set(data.customers.map((c: any) => Number(c.id)));
+        const localItems = await db.customers.toArray();
+        const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
+        if (toDelete.length > 0) {
+          await db.customers.bulkDelete(toDelete.map((item) => item.id!));
+        }
+        if (data.customers.length > 0) {
+          await db.customers.bulkPut(
+            data.customers.map((c: any) => ({
+              id: c.id,
+              name: c.name,
+              phone: c.phone || undefined,
+              email: c.email || undefined,
+              address: c.address || undefined,
+              credit_limit: Number(c.credit_limit || 0),
+              current_debt: Number(c.current_debt || 0),
+              loyalty_points: Number(c.loyalty_points || 0),
+              synced: 1
+            }))
+          );
+        }
       }
 
       // 7. Products
-      if (data.products && Array.isArray(data.products) && data.products.length > 0) {
-        await db.products.bulkPut(
-          data.products.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            reference: p.reference,
-            barcode: p.barcode,
-            category_id: p.category_id || undefined,
-            supplier_id: p.supplier_id || undefined,
-            user_id: p.user_id || undefined,
-            purchase_price: Number(p.purchase_price || 0),
-            selling_price: Number(p.selling_price || 0),
-            stock_quantity: Number(p.stock_quantity || 0),
-            min_stock: Number(p.min_stock || 5),
-            unit: p.unit || 'pièce',
-            image: p.image || undefined,
-            is_active: p.is_active === 1 || p.is_active === true || p.is_active === '1',
-            synced: 1,
-            created_at: p.created_at
-          }))
-        );
+      if (data.products && Array.isArray(data.products)) {
+        const remoteIds = new Set(data.products.map((p: any) => Number(p.id)));
+        const localItems = await db.products.toArray();
+        const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
+        if (toDelete.length > 0) {
+          await db.products.bulkDelete(toDelete.map((item) => item.id!));
+        }
+        if (data.products.length > 0) {
+          await db.products.bulkPut(
+            data.products.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              reference: p.reference,
+              barcode: p.barcode,
+              category_id: p.category_id || undefined,
+              supplier_id: p.supplier_id || undefined,
+              user_id: p.user_id || undefined,
+              purchase_price: Number(p.purchase_price || 0),
+              selling_price: Number(p.selling_price || 0),
+              stock_quantity: Number(p.stock_quantity || 0),
+              min_stock: Number(p.min_stock || 5),
+              unit: p.unit || 'pièce',
+              image: p.image || undefined,
+              is_active: p.is_active === 1 || p.is_active === true || p.is_active === '1',
+              synced: 1,
+              created_at: p.created_at
+            }))
+          );
+        }
       }
 
       // 8. Cash Sessions
-      if (data.cash_sessions && Array.isArray(data.cash_sessions) && data.cash_sessions.length > 0) {
-        await db.cash_sessions.bulkPut(
-          data.cash_sessions.map((cs: any) => ({
-            id: cs.id,
-            user_id: cs.user_id,
-            cash_register_id: cs.cash_register_id,
-            opening_amount: Number(cs.opening_amount || 0),
-            closing_amount: cs.closing_amount !== null && cs.closing_amount !== undefined ? Number(cs.closing_amount) : undefined,
-            expected_closing_amount: cs.expected_closing_amount !== null && cs.expected_closing_amount !== undefined ? Number(cs.expected_closing_amount) : undefined,
-            status: cs.status || 'open',
-            opened_at: cs.opened_at,
-            closed_at: cs.closed_at || undefined,
-            notes: cs.notes || undefined,
-            synced: 1
-          }))
-        );
+      if (data.cash_sessions && Array.isArray(data.cash_sessions)) {
+        const remoteIds = new Set(data.cash_sessions.map((cs: any) => Number(cs.id)));
+        const localItems = await db.cash_sessions.toArray();
+        const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
+        if (toDelete.length > 0) {
+          await db.cash_sessions.bulkDelete(toDelete.map((item) => item.id!));
+        }
+        if (data.cash_sessions.length > 0) {
+          await db.cash_sessions.bulkPut(
+            data.cash_sessions.map((cs: any) => ({
+              id: cs.id,
+              user_id: cs.user_id,
+              cash_register_id: cs.cash_register_id,
+              opening_amount: Number(cs.opening_amount || 0),
+              closing_amount: cs.closing_amount !== null && cs.closing_amount !== undefined ? Number(cs.closing_amount) : undefined,
+              expected_closing_amount: cs.expected_closing_amount !== null && cs.expected_closing_amount !== undefined ? Number(cs.expected_closing_amount) : undefined,
+              status: cs.status || 'open',
+              opened_at: cs.opened_at,
+              closed_at: cs.closed_at || undefined,
+              notes: cs.notes || undefined,
+              synced: 1
+            }))
+          );
+        }
       }
 
       // 9. Cash Movements
-      if (data.cash_movements && Array.isArray(data.cash_movements) && data.cash_movements.length > 0) {
-        await db.cash_movements.bulkPut(
-          data.cash_movements.map((cm: any) => ({
-            id: cm.id,
-            cash_session_id: cm.cash_session_id,
-            type: cm.type,
-            amount: Number(cm.amount || 0),
-            reason: cm.reason || '',
-            created_at: cm.created_at,
-            synced: 1
-          }))
-        );
+      if (data.cash_movements && Array.isArray(data.cash_movements)) {
+        const remoteIds = new Set(data.cash_movements.map((cm: any) => Number(cm.id)));
+        const localItems = await db.cash_movements.toArray();
+        const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
+        if (toDelete.length > 0) {
+          await db.cash_movements.bulkDelete(toDelete.map((item) => item.id!));
+        }
+        if (data.cash_movements.length > 0) {
+          await db.cash_movements.bulkPut(
+            data.cash_movements.map((cm: any) => ({
+              id: cm.id,
+              cash_session_id: cm.cash_session_id,
+              type: cm.type,
+              amount: Number(cm.amount || 0),
+              reason: cm.reason || '',
+              created_at: cm.created_at,
+              synced: 1
+            }))
+          );
+        }
       }
 
       // 10. Sales
-      if (data.sales && Array.isArray(data.sales) && data.sales.length > 0) {
+      if (data.sales && Array.isArray(data.sales)) {
+        const remoteIds = new Set(data.sales.map((s: any) => Number(s.id)));
+        const localSales = await db.sales.toArray();
+        const toDelete = localSales.filter((ls) => ls.id && ls.synced === 1 && !remoteIds.has(ls.id));
+        if (toDelete.length > 0) {
+          await db.sales.bulkDelete(toDelete.map((ls) => ls.id!));
+        }
+
         const unsyncedSales = await db.sales.where('synced').equals(0).toArray();
         const unsyncedSaleIds = new Set(unsyncedSales.map((s) => s.id));
 
@@ -339,116 +394,172 @@ class SyncService {
       }
 
       // 11. Sale Items
-      if (data.sale_items && Array.isArray(data.sale_items) && data.sale_items.length > 0) {
-        await db.sale_items.bulkPut(
-          data.sale_items.map((item: any) => ({
-            id: item.id,
-            sale_id: item.sale_id,
-            product_id: item.product_id,
-            product_name: item.product_name,
-            quantity: Number(item.quantity || 1),
-            unit_price: Number(item.unit_price || 0),
-            subtotal: Number(item.subtotal || item.total_price || (item.quantity * item.unit_price) || 0),
-            synced: 1
-          }))
-        );
+      if (data.sale_items && Array.isArray(data.sale_items)) {
+        const remoteIds = new Set(data.sale_items.map((si: any) => Number(si.id)));
+        const localItems = await db.sale_items.toArray();
+        const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
+        if (toDelete.length > 0) {
+          await db.sale_items.bulkDelete(toDelete.map((item) => item.id!));
+        }
+        if (data.sale_items.length > 0) {
+          await db.sale_items.bulkPut(
+            data.sale_items.map((item: any) => ({
+              id: item.id,
+              sale_id: item.sale_id,
+              product_id: item.product_id,
+              product_name: item.product_name,
+              quantity: Number(item.quantity || 1),
+              unit_price: Number(item.unit_price || 0),
+              subtotal: Number(item.subtotal || item.total_price || (item.quantity * item.unit_price) || 0),
+              synced: 1
+            }))
+          );
+        }
       }
 
       // 12. Stock Movements
-      if (data.stock_movements && Array.isArray(data.stock_movements) && data.stock_movements.length > 0) {
-        await db.stock_movements.bulkPut(
-          data.stock_movements.map((sm: any) => ({
-            id: sm.id,
-            product_id: sm.product_id,
-            type: sm.type || 'adjustment',
-            quantity: Number(sm.quantity || 0),
-            reference: sm.reference || `MVT-${sm.id}`,
-            reason: sm.reason || 'Ajustement',
-            user_id: sm.user_id || 1,
-            created_at: sm.created_at,
-            synced: 1
-          }))
-        );
+      if (data.stock_movements && Array.isArray(data.stock_movements)) {
+        const remoteIds = new Set(data.stock_movements.map((sm: any) => Number(sm.id)));
+        const localItems = await db.stock_movements.toArray();
+        const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
+        if (toDelete.length > 0) {
+          await db.stock_movements.bulkDelete(toDelete.map((item) => item.id!));
+        }
+        if (data.stock_movements.length > 0) {
+          await db.stock_movements.bulkPut(
+            data.stock_movements.map((sm: any) => ({
+              id: sm.id,
+              product_id: sm.product_id,
+              type: sm.type || 'adjustment',
+              quantity: Number(sm.quantity || 0),
+              reference: sm.reference || `MVT-${sm.id}`,
+              reason: sm.reason || 'Ajustement',
+              user_id: sm.user_id || 1,
+              created_at: sm.created_at,
+              synced: 1
+            }))
+          );
+        }
       }
 
       // 13. Expenses
-      if (data.expenses && Array.isArray(data.expenses) && data.expenses.length > 0) {
-        await db.expenses.bulkPut(
-          data.expenses.map((e: any) => ({
-            id: e.id,
-            user_id: e.user_id,
-            title: e.title,
-            amount: Number(e.amount || 0),
-            category: e.category || 'Général',
-            payment_method: e.payment_method || 'cash',
-            date: e.date,
-            notes: e.notes || undefined,
-            receipt_image: e.receipt_image || undefined,
-            synced: 1
-          }))
-        );
+      if (data.expenses && Array.isArray(data.expenses)) {
+        const remoteIds = new Set(data.expenses.map((e: any) => Number(e.id)));
+        const localItems = await db.expenses.toArray();
+        const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
+        if (toDelete.length > 0) {
+          await db.expenses.bulkDelete(toDelete.map((item) => item.id!));
+        }
+        if (data.expenses.length > 0) {
+          await db.expenses.bulkPut(
+            data.expenses.map((e: any) => ({
+              id: e.id,
+              user_id: e.user_id,
+              title: e.title,
+              amount: Number(e.amount || 0),
+              category: e.category || 'Général',
+              payment_method: e.payment_method || 'cash',
+              date: e.date,
+              notes: e.notes || undefined,
+              receipt_image: e.receipt_image || undefined,
+              synced: 1
+            }))
+          );
+        }
       }
 
       // 14. Purchases & Purchase Items
-      if (data.purchases && Array.isArray(data.purchases) && data.purchases.length > 0) {
-        await db.purchases.bulkPut(
-          data.purchases.map((pur: any) => ({
-            id: pur.id,
-            reference: pur.reference || `ACH-${pur.id}`,
-            supplier_id: pur.supplier_id,
-            user_id: pur.user_id || 1,
-            total_amount: Number(pur.total_amount || 0),
-            status: pur.status || 'pending',
-            created_at: pur.created_at || pur.order_date,
-            delivery_date: pur.delivery_date || undefined,
-            notes: pur.notes || undefined,
-            synced: 1
-          }))
-        );
+      if (data.purchases && Array.isArray(data.purchases)) {
+        const remoteIds = new Set(data.purchases.map((p: any) => Number(p.id)));
+        const localItems = await db.purchases.toArray();
+        const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
+        if (toDelete.length > 0) {
+          await db.purchases.bulkDelete(toDelete.map((item) => item.id!));
+        }
+        if (data.purchases.length > 0) {
+          await db.purchases.bulkPut(
+            data.purchases.map((pur: any) => ({
+              id: pur.id,
+              reference: pur.reference || `ACH-${pur.id}`,
+              supplier_id: pur.supplier_id,
+              user_id: pur.user_id || 1,
+              total_amount: Number(pur.total_amount || 0),
+              status: pur.status || 'pending',
+              created_at: pur.created_at || pur.order_date,
+              delivery_date: pur.delivery_date || undefined,
+              notes: pur.notes || undefined,
+              synced: 1
+            }))
+          );
+        }
       }
 
-      if (data.purchase_items && Array.isArray(data.purchase_items) && data.purchase_items.length > 0) {
-        await db.purchase_items.bulkPut(
-          data.purchase_items.map((pi: any) => ({
-            id: pi.id,
-            purchase_id: pi.purchase_id,
-            product_id: pi.product_id,
-            quantity: Number(pi.quantity || 1),
-            unit_price: Number(pi.unit_price || 0),
-            subtotal: Number(pi.subtotal || 0),
-            synced: 1
-          }))
-        );
+      if (data.purchase_items && Array.isArray(data.purchase_items)) {
+        const remoteIds = new Set(data.purchase_items.map((pi: any) => Number(pi.id)));
+        const localItems = await db.purchase_items.toArray();
+        const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
+        if (toDelete.length > 0) {
+          await db.purchase_items.bulkDelete(toDelete.map((item) => item.id!));
+        }
+        if (data.purchase_items.length > 0) {
+          await db.purchase_items.bulkPut(
+            data.purchase_items.map((pi: any) => ({
+              id: pi.id,
+              purchase_id: pi.purchase_id,
+              product_id: pi.product_id,
+              quantity: Number(pi.quantity || 1),
+              unit_price: Number(pi.unit_price || 0),
+              subtotal: Number(pi.subtotal || 0),
+              synced: 1
+            }))
+          );
+        }
       }
 
       // 15. Inventories & Inventory Items
-      if (data.inventories && Array.isArray(data.inventories) && data.inventories.length > 0) {
-        await db.inventories.bulkPut(
-          data.inventories.map((inv: any) => ({
-            id: inv.id,
-            reference: inv.reference || `INV-${inv.id}`,
-            status: inv.status || 'draft',
-            user_id: inv.user_id || 1,
-            date: inv.date || new Date().toISOString().slice(0, 10),
-            notes: inv.notes || undefined,
-            synced: 1
-          }))
-        );
+      if (data.inventories && Array.isArray(data.inventories)) {
+        const remoteIds = new Set(data.inventories.map((inv: any) => Number(inv.id)));
+        const localItems = await db.inventories.toArray();
+        const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
+        if (toDelete.length > 0) {
+          await db.inventories.bulkDelete(toDelete.map((item) => item.id!));
+        }
+        if (data.inventories.length > 0) {
+          await db.inventories.bulkPut(
+            data.inventories.map((inv: any) => ({
+              id: inv.id,
+              reference: inv.reference || `INV-${inv.id}`,
+              status: inv.status || 'draft',
+              user_id: inv.user_id || 1,
+              date: inv.date || new Date().toISOString().slice(0, 10),
+              notes: inv.notes || undefined,
+              synced: 1
+            }))
+          );
+        }
       }
 
-      if (data.inventory_items && Array.isArray(data.inventory_items) && data.inventory_items.length > 0) {
-        await db.inventory_items.bulkPut(
-          data.inventory_items.map((ii: any) => ({
-            id: ii.id,
-            inventory_id: ii.inventory_id,
-            product_id: ii.product_id,
-            theoretical_quantity: Number(ii.theoretical_quantity || 0),
-            real_quantity: Number(ii.real_quantity || 0),
-            difference: Number(ii.difference || 0),
-            cost_variance: Number(ii.cost_variance || 0),
-            synced: 1
-          }))
-        );
+      if (data.inventory_items && Array.isArray(data.inventory_items)) {
+        const remoteIds = new Set(data.inventory_items.map((ii: any) => Number(ii.id)));
+        const localItems = await db.inventory_items.toArray();
+        const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
+        if (toDelete.length > 0) {
+          await db.inventory_items.bulkDelete(toDelete.map((item) => item.id!));
+        }
+        if (data.inventory_items.length > 0) {
+          await db.inventory_items.bulkPut(
+            data.inventory_items.map((ii: any) => ({
+              id: ii.id,
+              inventory_id: ii.inventory_id,
+              product_id: ii.product_id,
+              theoretical_quantity: Number(ii.theoretical_quantity || 0),
+              real_quantity: Number(ii.real_quantity || 0),
+              difference: Number(ii.difference || 0),
+              cost_variance: Number(ii.cost_variance || 0),
+              synced: 1
+            }))
+          );
+        }
       }
 
       // 16. Deliveries
@@ -481,6 +592,7 @@ class SyncService {
         }
       }
 
+      window.dispatchEvent(new Event('gestmag:data_synced'));
       return true;
     } catch (err) {
       console.warn('Erreur pullFromRemote:', err);
