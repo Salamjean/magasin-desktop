@@ -2016,7 +2016,7 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  // Top 3 Produits (basé sur les ventes valides)
+  // Top 3 Produits (basé uniquement sur les ventes réelles)
   const productSalesMap = new Map<number, { quantity: number; revenue: number }>();
   validSaleItems.forEach((item) => {
     const existing = productSalesMap.get(item.product_id) || { quantity: 0, revenue: 0 };
@@ -2042,47 +2042,31 @@ export const Dashboard: React.FC = () => {
       .slice(0, 3);
   }
 
-  if (topProducts.length === 0 && products.length > 0) {
-    topProducts = products.slice(0, 3).map((p, idx) => ({
-      id: p.id || idx,
-      name: p.name,
-      quantitySold: 7 - idx * 2,
-      revenue: (7 - idx * 2) * p.selling_price
-    }));
-  }
-
   const activeSessions = cashSessions.filter((s) => s.status === 'open');
   const recentSales = sales.slice(0, 3);
 
   const auditLogs: AuditLogItem[] = [
     ...deliveries.map((d) => ({
       id: `deliv-${d.id}`,
-      userName: user?.name || 'Alain Directeur',
+      userName: user?.name || 'Administrateur',
       action: `Création livraison LIV-${d.id} pour ${d.customer_name}`,
-      timeAgo: 'Il y a 34 min',
+      timeAgo: d.created_at ? new Date(d.created_at).toLocaleDateString('fr-FR') : 'Aujourd\'hui',
       timestamp: new Date(d.created_at || now)
     })),
     ...purchases.map((p) => ({
       id: `purch-${p.id}`,
-      userName: user?.name || 'Alain Directeur',
-      action: `Réception validée par l'Admin pour la commande fournisseur ${p.reference} (Statut: received)`,
-      timeAgo: 'Il y a 39 min',
+      userName: user?.name || 'Administrateur',
+      action: `Commande fournisseur ${p.reference} (${p.status})`,
+      timeAgo: p.created_at ? new Date(p.created_at).toLocaleDateString('fr-FR') : 'Aujourd\'hui',
       timestamp: new Date(p.created_at || now)
     })),
-    {
-      id: 'auth-login',
-      userName: user?.name || 'Alain Directeur',
-      action: `Connexion de ${user?.name || 'Alain Directeur'} (${user?.role || 'admin'})`,
-      timeAgo: 'Il y a 44 min',
-      timestamp: new Date(Date.now() - 44 * 60 * 1000)
-    },
-    {
-      id: 'sys-init',
-      userName: 'Alain Directeur',
-      action: 'Initialisation réussie de la plateforme GestMagasin avec les 4 profils utilisateurs et données de démonstration.',
-      timeAgo: 'Il y a 18 h',
-      timestamp: new Date(Date.now() - 18 * 3600 * 1000)
-    }
+    ...sales.slice(0, 3).map((s) => ({
+      id: `sale-${s.id}`,
+      userName: getCashierName(s.user_id),
+      action: `Vente ${s.invoice_number} (${s.total_amount.toLocaleString('fr-FR')} ${currency})`,
+      timeAgo: s.created_at ? new Date(s.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'Aujourd\'hui',
+      timestamp: new Date(s.created_at || now)
+    }))
   ].slice(0, 4);
 
   const handleOpenReceipt = async (sale: Sale) => {
@@ -2240,37 +2224,43 @@ export const Dashboard: React.FC = () => {
 
             {/* List of 3 Top Products */}
             <div className="space-y-2.5">
-              {topProducts.map((item, idx) => (
-                <div
-                  key={item.id}
-                  className="p-2.5 rounded-xl bg-slate-50/80 hover:bg-slate-100/80 border border-slate-100 transition flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div
-                      className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black text-white flex-shrink-0 ${
-                        idx === 0
-                          ? 'bg-amber-500 shadow-sm shadow-amber-500/30'
-                          : idx === 1
-                          ? 'bg-slate-400'
-                          : 'bg-amber-700/70'
-                      }`}
-                    >
-                      {idx + 1}
+              {topProducts.length > 0 ? (
+                topProducts.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className="p-2.5 rounded-xl bg-slate-50/80 hover:bg-slate-100/80 border border-slate-100 transition flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black text-white flex-shrink-0 ${
+                          idx === 0
+                            ? 'bg-amber-500 shadow-sm shadow-amber-500/30'
+                            : idx === 1
+                            ? 'bg-slate-400'
+                            : 'bg-amber-700/70'
+                        }`}
+                      >
+                        {idx + 1}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-800 truncate">{item.name}</p>
+                        <p className="text-[10px] text-slate-400">{item.quantitySold} vendus</p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-800 truncate">{item.name}</p>
-                      <p className="text-[10px] text-slate-400">{item.quantitySold} vendus</p>
-                    </div>
-                  </div>
 
-                  <div className="text-right flex-shrink-0 ml-2">
-                    <p className="text-xs font-black text-slate-900">
-                      {item.revenue.toLocaleString('fr-FR')}
-                    </p>
-                    <p className="text-[9px] text-slate-400">{currency}</p>
+                    <div className="text-right flex-shrink-0 ml-2">
+                      <p className="text-xs font-black text-slate-900">
+                        {item.revenue.toLocaleString('fr-FR')}
+                      </p>
+                      <p className="text-[9px] text-slate-400">{currency}</p>
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="py-8 text-center text-slate-400 text-xs font-medium">
+                  Aucun article vendu pour le moment
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
@@ -2311,63 +2301,74 @@ export const Dashboard: React.FC = () => {
             </div>
 
             <div className="space-y-2.5">
-              <div className="p-3 rounded-xl bg-emerald-50/30 border border-emerald-200/80 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    <span className="text-xs font-bold text-slate-900">
-                      {cashRegisters[0]?.name || 'Caisse Principale N°1 (Allée A)'}
-                    </span>
-                  </div>
-                  <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                    OUVERTE
-                  </span>
-                </div>
+              {cashRegisters.length > 0 ? (
+                cashRegisters.map((reg) => {
+                  const session = activeSessions.find((s) => s.cash_register_id === reg.id);
+                  const isOpen = !!session;
+                  return (
+                    <div
+                      key={reg.id}
+                      className={`p-3 rounded-xl border space-y-2 ${
+                        isOpen
+                          ? 'bg-emerald-50/30 border-emerald-200/80'
+                          : 'bg-slate-50/60 border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`w-2 h-2 rounded-full ${isOpen ? 'bg-emerald-500' : 'bg-slate-400'}`}
+                          ></span>
+                          <span className="text-xs font-bold text-slate-900">{reg.name}</span>
+                        </div>
+                        <span
+                          className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
+                            isOpen
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-slate-200 text-slate-600'
+                          }`}
+                        >
+                          {isOpen ? 'OUVERTE' : 'FERMÉE'}
+                        </span>
+                      </div>
 
-                <div className="space-y-1 text-[11px] pt-1 border-t border-dashed border-emerald-200/60">
-                  <div className="flex justify-between text-slate-500">
-                    <span>Caissier :</span>
-                    <span className="font-semibold text-slate-800">
-                      {activeSessions[0] ? getCashierName(activeSessions[0].user_id) : 'Jean Koffi'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-slate-500">
-                    <span>Fond initial :</span>
-                    <span className="font-semibold text-slate-800">
-                      {activeSessions[0]?.opening_amount
-                        ? `${activeSessions[0].opening_amount.toLocaleString('fr-FR')} F`
-                        : '50 000 F'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between font-bold text-slate-900 pt-0.5">
-                    <span>Total théorique (Espèces) :</span>
-                    <span className="text-emerald-700 font-black">
-                      {(
-                        (activeSessions[0]?.opening_amount || 50000) +
-                        (todayCashCollected || 8500)
-                      ).toLocaleString('fr-FR')}{' '}
-                      {currency}
-                    </span>
-                  </div>
+                      {isOpen ? (
+                        <div className="space-y-1 text-[11px] pt-1 border-t border-dashed border-emerald-200/60">
+                          <div className="flex justify-between text-slate-500">
+                            <span>Caissier :</span>
+                            <span className="font-semibold text-slate-800">
+                              {getCashierName(session.user_id)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-slate-500">
+                            <span>Fond initial :</span>
+                            <span className="font-semibold text-slate-800">
+                              {(session.opening_amount || 0).toLocaleString('fr-FR')} F
+                            </span>
+                          </div>
+                          <div className="flex justify-between font-bold text-slate-900 pt-0.5">
+                            <span>Total théorique :</span>
+                            <span className="text-emerald-700 font-black">
+                              {(
+                                (session.opening_amount || 0) + todayCashCollected
+                              ).toLocaleString('fr-FR')}{' '}
+                              {currency}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-slate-400 pt-1">
+                          Aucune session active sur ce terminal
+                        </p>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="py-6 text-center text-slate-400 text-xs font-medium">
+                  Aucune caisse enregistrée
                 </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-50/60 border border-slate-200 space-y-1">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-                    <span className="text-xs font-bold text-slate-700">
-                      {cashRegisters[1]?.name || 'Caisse Express N°2 (Allée B)'}
-                    </span>
-                  </div>
-                  <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-slate-200 text-slate-600">
-                    FERMÉE
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-400 pt-1">
-                  Aucune session active sur ce terminal
-                </p>
-              </div>
+              )}
             </div>
           </div>
 
@@ -2457,33 +2458,10 @@ export const Dashboard: React.FC = () => {
                   );
                 })
               ) : (
-                <>
-                  <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-black text-slate-900">VNT-20261005-0001</p>
-                      <p className="text-[10px] text-slate-400">19:54 • Par Koffi</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-black text-slate-900">3 500 F</p>
-                      <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                        CASH
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-black text-slate-900">VNT-20261005-0002</p>
-                      <p className="text-[10px] text-slate-400">19:56 • Par Koffi</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-black text-slate-900">21 500 F</p>
-                      <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-800">
-                        MOBILE_MONEY
-                      </span>
-                    </div>
-                  </div>
-                </>
+                <div className="py-8 text-center text-slate-400 text-xs font-medium">
+                  <Receipt className="w-6 h-6 mx-auto mb-1 text-slate-300" />
+                  Aucune vente enregistrée
+                </div>
               )}
             </div>
           </div>
@@ -2512,17 +2490,23 @@ export const Dashboard: React.FC = () => {
             </div>
 
             <div className="space-y-2.5 text-xs">
-              {auditLogs.map((log) => (
-                <div key={log.id} className="space-y-0.5 border-b border-slate-100 pb-2 last:border-0">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800 text-[11px]">{log.userName}</span>
-                    <span className="text-[10px] text-slate-400 font-medium">{log.timeAgo}</span>
+              {auditLogs.length > 0 ? (
+                auditLogs.map((log) => (
+                  <div key={log.id} className="space-y-0.5 border-b border-slate-100 pb-2 last:border-0">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 text-[11px]">{log.userName}</span>
+                      <span className="text-[10px] text-slate-400 font-medium">{log.timeAgo}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-snug line-clamp-2">
+                      {log.action}
+                    </p>
                   </div>
-                  <p className="text-[11px] text-slate-600 leading-snug line-clamp-2">
-                    {log.action}
-                  </p>
+                ))
+              ) : (
+                <div className="py-8 text-center text-slate-400 text-xs font-medium">
+                  Aucune activité enregistrée
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
