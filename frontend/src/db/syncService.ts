@@ -2,9 +2,13 @@ import { db } from './db';
 
 export const API_BASE_URL =
   (import.meta as any).env?.VITE_API_URL ||
-  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'file:'
-    ? `${window.location.origin}/api`
-    : 'http://localhost:5000/api');
+  (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port === '5173'
+    ? 'http://localhost:5000/api'
+    : typeof window !== 'undefined' && window.location.protocol === 'file:'
+      ? 'https://magasin.fescad.net/api'
+      : typeof window !== 'undefined' && window.location.origin
+        ? `${window.location.origin}/api`
+        : 'https://magasin.fescad.net/api');
 
 export interface SyncStatus {
   isOnline: boolean;
@@ -448,24 +452,33 @@ class SyncService {
       }
 
       // 16. Deliveries
-      if (data.deliveries && Array.isArray(data.deliveries) && data.deliveries.length > 0) {
-        await db.deliveries.bulkPut(
-          data.deliveries.map((d: any) => ({
-            id: d.id,
-            sale_id: d.sale_id,
-            delivery_person_id: d.delivery_person_id || undefined,
-            customer_name: d.customer_name,
-            customer_phone: d.customer_phone || undefined,
-            delivery_address: d.delivery_address,
-            status: d.status || 'pending',
-            otp_code: d.otp_code || undefined,
-            tracking_number: d.tracking_number || undefined,
-            notes: d.notes || undefined,
-            created_at: d.created_at,
-            delivered_at: d.delivered_at || undefined,
-            synced: 1
-          }))
-        );
+      if (data.deliveries && Array.isArray(data.deliveries)) {
+        const remoteIds = new Set(data.deliveries.map((d: any) => Number(d.id)));
+        const localDels = await db.deliveries.toArray();
+        const toDelete = localDels.filter((ld) => ld.id && ld.synced === 1 && !remoteIds.has(ld.id));
+        if (toDelete.length > 0) {
+          await db.deliveries.bulkDelete(toDelete.map((ld) => ld.id!));
+        }
+
+        if (data.deliveries.length > 0) {
+          await db.deliveries.bulkPut(
+            data.deliveries.map((d: any) => ({
+              id: d.id,
+              sale_id: d.sale_id,
+              delivery_person_id: d.delivery_person_id || undefined,
+              customer_name: d.customer_name,
+              customer_phone: d.customer_phone || undefined,
+              delivery_address: d.delivery_address,
+              status: d.status || 'pending',
+              otp_code: d.otp_code || undefined,
+              tracking_number: d.tracking_number || undefined,
+              notes: d.notes || undefined,
+              created_at: d.created_at,
+              delivered_at: d.delivered_at || undefined,
+              synced: 1
+            }))
+          );
+        }
       }
 
       return true;

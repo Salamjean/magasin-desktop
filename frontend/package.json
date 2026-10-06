@@ -10,12 +10,38 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "dev:web": "vite",
-    "build:web": "tsc && vite build",
-    "electron:dev": "vite",
     "desktop": "electron .",
-    "electron:build": "npm run build && electron-builder",
-    "electron:preview": "electron ."
+    "electron:dev": "vite",
+    "electron:build": "tsc && vite build && electron-builder"
+  },
+  "build": {
+    "appId": "com.gestmagasin.pro",
+    "productName": "GestMagasin Pro",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/logo.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "GestMagasin Pro"
+    }
   },
   "dependencies": {
     "@types/sql.js": "^1.4.11",

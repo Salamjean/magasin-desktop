@@ -496,6 +496,21 @@ export const deleteCashRegisterSync = async (req: Request, res: Response) => {
   }
 };
 
+export const deleteDeliverySync = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const [result]: any = await pool.query('DELETE FROM deliveries WHERE id = ?', [id]);
+    return res.json({
+      success: true,
+      message: 'Livraison supprimée avec succès dans MySQL',
+      affectedRows: result.affectedRows
+    });
+  } catch (err: any) {
+    console.error('Erreur suppression livraison MySQL:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 export const syncHealth = async (req: Request, res: Response) => {
   try {
     const conn = await pool.getConnection();

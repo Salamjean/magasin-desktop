@@ -1,9 +1,17 @@
 import React from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SyncProvider } from './context/SyncContext';
 import { CartProvider } from './context/CartContext';
 import { SettingsProvider } from './context/SettingsContext';
+
+const AppRouter: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const isElectronFile = typeof window !== 'undefined' && window.location.protocol === 'file:';
+  if (isElectronFile) {
+    return <HashRouter>{children}</HashRouter>;
+  }
+  return <BrowserRouter>{children}</BrowserRouter>;
+};
 
 // Layouts matching resources/views/layouts/
 import { AppLayout } from './views/layouts';
@@ -95,7 +103,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 export const App: React.FC = () => {
   return (
-    <HashRouter>
+    <AppRouter>
       <AuthProvider>
         <SettingsProvider>
           <SyncProvider>
@@ -208,6 +216,6 @@ export const App: React.FC = () => {
           </SyncProvider>
         </SettingsProvider>
       </AuthProvider>
-    </HashRouter>
+    </AppRouter>
   );
 };

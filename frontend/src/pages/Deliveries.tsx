@@ -138,6 +138,18 @@ export const Deliveries: React.FC = () => {
     });
 
     if (confirm.isConfirmed) {
+      // 1. Suppression directe sur le serveur distant si connecté
+      try {
+        const { API_BASE_URL } = await import('../db/syncService');
+        await fetch(`${API_BASE_URL}/sync/deliveries/${delivery.id}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (e) {
+        console.warn('Suppression locale (serveur non joignable):', e);
+      }
+
+      // 2. Suppression dans la base locale Dexie
       await db.deliveries.delete(delivery.id);
       Swal.fire({
         icon: 'success',

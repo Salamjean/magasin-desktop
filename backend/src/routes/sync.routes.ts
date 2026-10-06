@@ -4,7 +4,8 @@ import {
   syncHealth,
   syncPullAll,
   syncPush,
-  deleteCashRegisterSync
+  deleteCashRegisterSync,
+  deleteDeliverySync
 } from '../controllers/admin/sync.controller.js';
 
 const router = Router();
@@ -14,5 +15,6 @@ router.get('/pull', syncPullAll);
 router.post('/push', syncPush);
 router.post('/batch', syncBatch);
 router.delete('/cash-registers/:id', deleteCashRegisterSync);
+router.delete('/deliveries/:id', deleteDeliverySync);
 
 export default router;
