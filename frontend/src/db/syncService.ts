@@ -1,6 +1,8 @@
-import { db } from './db';
-
-const API_BASE_URL = 'http://localhost:5000/api';
+export const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'file:'
+    ? `${window.location.origin}/api`
+    : 'http://localhost:5000/api');
 
 export interface SyncStatus {
   isOnline: boolean;

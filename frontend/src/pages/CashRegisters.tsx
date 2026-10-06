@@ -233,7 +233,8 @@ export const CashRegisters: React.FC = () => {
       try {
         // 1. Suppression directe et effective dans la base MySQL du serveur
         try {
-          const res = await fetch(`http://localhost:5000/api/sync/cash-registers/${reg.id}`, {
+          const { API_BASE_URL } = await import('../db/syncService');
+          const res = await fetch(`${API_BASE_URL}/sync/cash-registers/${reg.id}`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' }
           });
