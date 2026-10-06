@@ -1,0 +1,16 @@
+import { Router } from 'express';
+import { authenticateJWT } from '../middlewares/auth.js';
+import { getStockMovements, createStockMovement } from '../controllers/admin/stock.controller.js';
+import { getAllProducts } from '../controllers/admin/products.controller.js';
+import { getAllPurchases, receivePurchase } from '../controllers/admin/purchases.controller.js';
+import { getAllInventories, validateInventory } from '../controllers/admin/inventory.controller.js';
+const router = Router();
+router.use(authenticateJWT);
+router.get('/products', getAllProducts);
+router.get('/stock', getStockMovements);
+router.post('/stock', createStockMovement);
+router.get('/receptions', getAllPurchases);
+router.post('/receptions/:id/receive', receivePurchase);
+router.get('/inventories', getAllInventories);
+router.post('/inventories/validate', validateInventory);
+export default router;
