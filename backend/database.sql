@@ -283,53 +283,24 @@ CREATE TABLE IF NOT EXISTS `purchase_items` (
 -- DONNÉES INITIALES (SEED DATA)
 -- ==========================================================
 
--- Utilisateurs de démonstration (Mots de passe : admin123, caissier123, etc.)
+-- Compte Administrateur Unique (Mot de passe : 12345678)
 INSERT IGNORE INTO `users` (`id`, `name`, `email`, `password`, `role`, `phone`, `active`, `synced`) VALUES
-(1, 'Administrateur Principal', 'admin@gestmagasin.com', 'admin123', 'admin', '+225 07 00 00 01', 1, 1),
-(2, 'Jean Caissier', 'caissier@gestmagasin.com', 'caissier123', 'caissier', '+225 07 00 00 02', 1, 1),
-(3, 'Moussa Magasinier', 'magasinier@gestmagasin.com', 'magasinier123', 'magasinier', '+225 07 00 00 03', 1, 1),
-(4, 'Kouassi Livreur', 'livreur@gestmagasin.com', 'livreur123', 'livreur', '+225 07 00 00 04', 1, 1);
+(1, 'Administrateur', 'admin@gmail.com', '$2a$10$fAgXd9fhYdoVDr.2T91Squgf.Niq6LFHHQOTPqWNQIEm1..AzKtuG', 'admin', '+225 07 00 00 00', 1, 1);
 
 -- Paramètres généraux
 INSERT IGNORE INTO `settings` (`key`, `value`) VALUES
 ('company_name', 'GEST MAGASIN PRO'),
-('company_phone', '+225 07 88 99 00 11'),
-('company_email', 'contact@gestmagasin.ci'),
-('company_address', 'Abidjan Cocody, Rue des Jardins'),
+('company_phone', '+225 07 00 00 00'),
+('company_email', 'admin@gmail.com'),
+('company_address', 'Abidjan, Côte d\'Ivoire'),
 ('company_nif', 'CI-ABJ-2026-B-12345'),
 ('currency', 'FCFA'),
-('tax_rate', '18'),
+('tax_rate', '0'),
+('min_stock_alert', '10'),
 ('receipt_footer', 'Merci de votre visite et à très bientôt !'),
 ('auto_sync', 'true');
 
--- Caisses enregistreuses
+-- Caisse enregistreuse par défaut
 INSERT IGNORE INTO `cash_registers` (`id`, `name`, `code`, `is_active`, `notes`, `synced`) VALUES
-(1, 'Caisse Principale N°1', 'CAISSE-01', 1, 'Caisse au rez-de-chaussée', 1),
-(2, 'Caisse Express N°2', 'CAISSE-02', 1, 'Caisse rapide', 1);
+(1, 'Caisse Principale', 'CAISSE-01', 1, 'Caisse de vente principale', 1);
 
--- Catégories
-INSERT IGNORE INTO `categories` (`id`, `name`, `description`, `icon`, `color`, `synced`) VALUES
-(1, 'Boissons & Rafraîchissements', 'Jus, Sodas, Eaux minérales et bières', 'Coffee', '#0284c7', 1),
-(2, 'Alimentation & Épicerie', 'Riz, Huiles, Conserves, Pâtes', 'ShoppingBag', '#16a34a', 1),
-(3, 'Hygiène & Entretien', 'Savons, Détergents, Produits ménagers', 'Sparkles', '#9333ea', 1),
-(4, 'Snacks & Biscuiterie', 'Biscuits, Chocolats, Confiseries', 'Cookie', '#ea580c', 1);
-
--- Articles / Produits
-INSERT IGNORE INTO `products` (`id`, `name`, `reference`, `barcode`, `category_id`, `purchase_price`, `selling_price`, `stock_quantity`, `min_stock`, `unit`, `is_active`, `synced`) VALUES
-(1, 'Coca-Cola 33cl (Canette)', 'PROD-001', '5449000000996', 1, 350.00, 500.00, 120, 20, 'pièce', 1, 1),
-(2, 'Eau Minérale Awa 1.5L', 'PROD-002', '6181100010023', 1, 250.00, 400.00, 85, 15, 'bouteille', 1, 1),
-(3, 'Riz Parfumé Dinor 5kg', 'PROD-003', '6181100020039', 2, 3800.00, 4750.00, 40, 10, 'sac', 1, 1),
-(4, 'Huile Végétale Dinor 1L', 'PROD-004', '6181100030045', 2, 1100.00, 1400.00, 60, 12, 'bouteille', 1, 1),
-(5, 'Savon de Toilette Lux 125g', 'PROD-005', '6181100040051', 3, 300.00, 450.00, 95, 25, 'pièce', 1, 1),
-(6, 'Biscuits Oreo 154g', 'PROD-006', '7622210449283', 4, 600.00, 850.00, 50, 15, 'paquet', 1, 1);
-
--- Fournisseurs
-INSERT IGNORE INTO `suppliers` (`id`, `name`, `contact_name`, `email`, `phone`, `address`, `tax_number`, `notes`, `synced`) VALUES
-(1, 'SOCOCE Distribution', 'M. Touré', 'contact@sococe.ci', '+225 27 22 44 00', 'Zone Industrielle de Yopougon, Abidjan', 'CI-1998-A-0987', 'Fournisseur principal agro-alimentaire', 1),
-(2, 'Solibra Côte d\'Ivoire', 'Service Commercial', 'commandes@solibra.ci', '+225 27 21 21 88', 'Boulevard de Marseille, Treichville', 'CI-1955-B-0012', 'Boissons et sodas', 1);
-
--- Clients
-INSERT IGNORE INTO `customers` (`id`, `name`, `phone`, `email`, `address`, `credit_limit`, `current_debt`, `loyalty_points`, `synced`) VALUES
-(1, 'Client Comptoir Standard', 'N/A', '', 'Sur place', 0.00, 0.00, 0, 1),
-(2, 'Société Ivoire BTP', '+225 07 48 00 12', 'achats@ivoirebtp.ci', 'Plateau, Immeuble Alpha', 500000.00, 120000.00, 340, 1),
-(3, 'Mme Aminata Koné', '+225 05 55 44 33', 'aminata.kone@gmail.com', 'Riviera Palmeraie', 100000.00, 0.00, 150, 1);
