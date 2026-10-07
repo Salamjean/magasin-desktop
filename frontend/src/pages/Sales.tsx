@@ -35,6 +35,7 @@ interface SaleWithDetails extends Sale {
   itemCount?: number;
   items?: (SaleItem & { product?: Product })[];
   cashierName?: string;
+  deliveryStatus?: 'delivered' | 'in_transit' | 'pending' | 'none';
 }
 
 export const Sales: React.FC = () => {
@@ -74,6 +75,7 @@ export const Sales: React.FC = () => {
       const rawCustomers = await db.customers.toArray();
       const rawProducts = await db.products.toArray();
       const rawUsers = await db.users.toArray();
+      const rawDeliveries = await db.deliveries.toArray();
 
       const custMap = new Map<number, Customer>(rawCustomers.map((c) => [c.id!, c]));
       const userMap = new Map<number, string>(rawUsers.map((u) => [u.id!, u.name]));
@@ -90,13 +92,24 @@ export const Sales: React.FC = () => {
 
         const totalQty = saleItems.reduce((acc, it) => acc + (Number(it.quantity) || 1), 0);
 
+        const saleDeliveries = rawDeliveries.filter((d) => d.sale_id === s.id);
+        let delivStatus: 'delivered' | 'in_transit' | 'pending' | 'none' = 'none';
+        if (saleDeliveries.some((d) => d.status === 'delivered')) {
+          delivStatus = 'delivered';
+        } else if (saleDeliveries.some((d) => d.status === 'in_transit')) {
+          delivStatus = 'in_transit';
+        } else if (saleDeliveries.some((d) => d.status === 'pending')) {
+          delivStatus = 'pending';
+        }
+
         return {
           ...s,
           customerName: cust?.name || 'Client Comptoir Standard',
           customerPhone: cust?.phone || '',
           itemCount: totalQty || saleItems.length || 1,
           items: saleItems,
-          cashierName: userMap.get(s.user_id) || 'Caissier'
+          cashierName: userMap.get(s.user_id) || 'Caissier',
+          deliveryStatus: delivStatus
         };
       });
 
@@ -213,8 +226,26 @@ export const Sales: React.FC = () => {
     setDetailSale(sale);
   };
 
-  // Action 2 : Livraison (Redirection vers création de livraison préremplie)
+  // Action 2 : Livraison (Redirection vers création de livraison préremplie si non livrée)
   const handleOpenDelivery = (sale: SaleWithDetails) => {
+    if (sale.deliveryStatus === 'delivered') {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Commande Déjà Livrée',
+        text: 'Cette vente a déjà été marquée comme LIVRÉE au destinataire par le livreur. Il n\'est pas possible de reprogrammer une livraison pour cet article.',
+        confirmButtonColor: '#0055b8'
+      });
+      return;
+    }
+    if (sale.deliveryStatus === 'in_transit' || sale.deliveryStatus === 'pending') {
+      Swal.fire({
+        icon: 'info',
+        title: 'Livraison en cours',
+        text: 'Une livraison est déjà en cours pour cette vente.',
+        confirmButtonColor: '#0055b8'
+      });
+      return;
+    }
     navigate('/deliveries/new', { state: { saleId: sale.id } });
   };
 
@@ -366,16 +397,6 @@ export const Sales: React.FC = () => {
             Consultez l'historique complet des tickets émis lors de vos sessions.
           </p>
         </div>
-
-        {/* Bouton vert Ouvrir le Terminal POS */}
-        <button
-          type="button"
-          onClick={() => navigate('/pos')}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#057a55] hover:bg-[#046c4e] text-white font-bold text-xs shadow-sm transition active:scale-95 self-start sm:self-auto"
-        >
-          <Store className="w-4 h-4 stroke-[2.2]" />
-          <span>Ouvrir le Terminal POS</span>
-        </button>
       </div>
 
       {/* 2. BARRE DE FILTRES BLANCHE (CONFORME À L'IMAGE) */}
@@ -561,15 +582,35 @@ export const Sales: React.FC = () => {
 
                         {!isCancelled && (
                           <>
-                            {/* 2. Bouton Livraison (vélo/scooter violet) */}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenDelivery(s)}
-                              className="w-7 h-7 rounded-full bg-purple-50 hover:bg-purple-100 text-purple-600 flex items-center justify-center transition shadow-xs"
-                              title="Créer / Assigner une livraison pour cette vente"
-                            >
-                              <Bike className="w-3.5 h-3.5" />
-                            </button>
+                            {/* 2. Bouton Livraison (avec état livré / en cours / à programmer) */}
+                            {s.deliveryStatus === 'delivered' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDelivery(s)}
+                                className="w-7 h-7 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-600 flex items-center justify-center transition shadow-xs"
+                                title="Commande Déjà Livrée (Non reprogrammable)"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              </button>
+                            ) : s.deliveryStatus === 'in_transit' || s.deliveryStatus === 'pending' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDelivery(s)}
+                                className="w-7 h-7 rounded-full bg-blue-50 hover:bg-blue-100 text-[#0055b8] flex items-center justify-center transition shadow-xs"
+                                title="Livraison en cours"
+                              >
+                                <Bike className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDelivery(s)}
+                                className="w-7 h-7 rounded-full bg-purple-50 hover:bg-purple-100 text-purple-600 flex items-center justify-center transition shadow-xs"
+                                title="Créer / Assigner une livraison pour cette vente"
+                              >
+                                <Bike className="w-3.5 h-3.5" />
+                              </button>
+                            )}
 
                             {/* 3. Bouton Imprimer Ticket (imprimante grise) */}
                             <button

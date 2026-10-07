@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, Customer } from '../db/db';
+import { useAuth } from '../context/AuthContext';
 import {
   Users,
   Plus,
@@ -21,6 +22,9 @@ import Swal from 'sweetalert2';
 
 export const Customers: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [debtFilter, setDebtFilter] = useState<'all' | 'debt' | 'clear'>('all');
@@ -42,6 +46,15 @@ export const Customers: React.FC = () => {
   const handleDeleteCustomer = async (c: Customer, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (!c.id) return;
+
+    if (!isAdmin) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Action non autorisée',
+        text: 'Seul un administrateur est autorisé à supprimer un client ou une ligne de dette.'
+      });
+      return;
+    }
 
     const confirm = await Swal.fire({
       title: 'Supprimer ce client ?',
@@ -78,12 +91,34 @@ export const Customers: React.FC = () => {
         synced: 0
       });
 
+      // Enregistrer le mouvement de caisse avec traçabilité de qui a récupéré le montant
+      const activeSession = await db.cash_sessions.where('status').equals('open').first();
+      const collectorName = user?.name ? `${user.name} (${user.role === 'admin' ? 'Administrateur' : 'Caissier'})` : 'Caisse Principale';
+
+      if (activeSession?.id) {
+        await db.cash_movements.add({
+          cash_session_id: activeSession.id,
+          type: 'deposit',
+          amount: paymentAmount,
+          reason: `Règlement dette client : ${selectedDebtCustomer.name} (Encaissé par ${collectorName})`,
+          created_at: new Date().toISOString(),
+          synced: 0
+        });
+      }
+
       await Swal.fire({
         icon: 'success',
         title: 'Règlement enregistré !',
-        text: `Nouveau solde de dette pour "${selectedDebtCustomer.name}" : ${remainingDebt.toLocaleString('fr-FR')} FCFA.`,
-        timer: 2000,
-        showConfirmButton: false
+        html: `
+          <div class="text-xs text-left space-y-1">
+            <p><strong>Montant encaissé :</strong> ${paymentAmount.toLocaleString('fr-FR')} FCFA</p>
+            <p><strong>Récupéré / Encaissé par :</strong> <span class="text-blue-600 font-bold">${collectorName}</span></p>
+            <p><strong>Nouveau solde dette :</strong> ${remainingDebt.toLocaleString('fr-FR')} FCFA</p>
+          </div>
+        `,
+        timer: 3000,
+        showConfirmButton: true,
+        confirmButtonText: 'Fermer'
       });
 
       setIsPayDebtOpen(false);
@@ -282,14 +317,16 @@ export const Customers: React.FC = () => {
                           <Edit2 className="w-4 h-4" />
                         </button>
 
-                        {/* Bouton Supprimer */}
-                        <button
-                          onClick={(e) => handleDeleteCustomer(c, e)}
-                          className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-xl transition shadow-xs"
-                          title="Supprimer le client"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {/* Bouton Supprimer - Réservé uniquement à l'administrateur */}
+                        {isAdmin && (
+                          <button
+                            onClick={(e) => handleDeleteCustomer(c, e)}
+                            className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-xl transition shadow-xs"
+                            title="Supprimer le client (Admin)"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

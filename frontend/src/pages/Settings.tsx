@@ -247,7 +247,7 @@ export const Settings: React.FC = () => {
                   ) : (
                     <div className="flex flex-col items-center justify-center gap-2 text-center p-2">
                       <img
-                        src="/logo.png"
+                        src="./logo.png"
                         alt="Logo GESTiMAG"
                         className="max-h-20 max-w-full object-contain drop-shadow-sm"
                         onError={(e) => {

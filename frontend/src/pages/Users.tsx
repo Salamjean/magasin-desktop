@@ -28,6 +28,15 @@ export const UsersPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
+
+    const handleDataSynced = () => {
+      loadData();
+    };
+
+    window.addEventListener('gestmag:data_synced', handleDataSynced);
+    return () => {
+      window.removeEventListener('gestmag:data_synced', handleDataSynced);
+    };
   }, []);
 
   const loadData = async () => {

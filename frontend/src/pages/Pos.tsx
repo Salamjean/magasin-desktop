@@ -14,6 +14,7 @@ import {
   CreditCard,
   Smartphone,
   Users,
+  UserPlus,
   CheckCircle2,
   Printer,
   Sparkles,
@@ -262,6 +263,87 @@ export const Pos: React.FC = () => {
 
   const changeAmount = Math.max(0, paidAmount - total);
 
+  // Ajout rapide d'un nouveau client directement depuis la caisse (réservé aux infos de contact)
+  const handleOpenQuickAddCustomer = async () => {
+    const { value: formValues } = await Swal.fire({
+      title: 'Nouveau Client',
+      html: `
+        <div class="space-y-3 text-left p-1 text-xs">
+          <div>
+            <label class="font-extrabold uppercase text-slate-500 block mb-1 text-[10px] tracking-wider">Nom & Prénom / Raison Sociale *</label>
+            <input id="swal-cust-name" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-800 font-semibold text-xs focus:outline-none focus:border-[#0055b8]" placeholder="Ex: M. Amadou Diallo" autofocus />
+          </div>
+          <div>
+            <label class="font-extrabold uppercase text-slate-500 block mb-1 text-[10px] tracking-wider">Téléphone de contact</label>
+            <input id="swal-cust-phone" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-800 font-semibold text-xs focus:outline-none focus:border-[#0055b8]" placeholder="Ex: 0708091011" />
+          </div>
+          <div>
+            <label class="font-extrabold uppercase text-slate-500 block mb-1 text-[10px] tracking-wider">Adresse / Quartier</label>
+            <input id="swal-cust-address" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-800 font-semibold text-xs focus:outline-none focus:border-[#0055b8]" placeholder="Ex: Cocody Angré 8e Tranche" />
+          </div>
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Enregistrer le client',
+      cancelButtonText: 'Annuler',
+      confirmButtonColor: '#0055b8',
+      cancelButtonColor: '#64748b',
+      preConfirm: () => {
+        const nameInput = (document.getElementById('swal-cust-name') as HTMLInputElement)?.value.trim();
+        const phoneInput = (document.getElementById('swal-cust-phone') as HTMLInputElement)?.value.trim();
+        const addressInput = (document.getElementById('swal-cust-address') as HTMLInputElement)?.value.trim();
+
+        if (!nameInput) {
+          Swal.showValidationMessage('Le nom du client est obligatoire.');
+          return false;
+        }
+
+        return {
+          name: nameInput,
+          phone: phoneInput || '',
+          address: addressInput || '',
+          credit_limit: 0
+        };
+      }
+    });
+
+    if (formValues) {
+      try {
+        const newCustId = await db.customers.add({
+          name: formValues.name,
+          phone: formValues.phone,
+          address: formValues.address,
+          credit_limit: 0,
+          current_debt: 0,
+          loyalty_points: 0,
+          synced: 0
+        });
+
+        const updatedCusts = await db.customers.toArray();
+        setCustomers(updatedCusts);
+
+        const newCustomerObj = updatedCusts.find((c) => c.id === Number(newCustId));
+        if (newCustomerObj) {
+          setCustomer(newCustomerObj);
+        }
+
+        // Push sync vers MySQL
+        syncService.pushToRemote().catch((e) => console.warn('Sync error:', e));
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Client enregistré !',
+          text: `Le client ${formValues.name} a été créé et sélectionné pour cette vente.`,
+          timer: 2000,
+          showConfirmButton: false
+        });
+      } catch (err: any) {
+        Swal.fire('Erreur', err.message || 'Impossible d\'ajouter le client.', 'error');
+      }
+    }
+  };
+
   // Validate & complete checkout
   const handleValidateCheckout = async () => {
     if (items.length === 0) return;
@@ -483,9 +565,9 @@ export const Pos: React.FC = () => {
   };
 
   return (
-    <div className="h-full max-h-full min-h-0 flex flex-col lg:flex-row gap-3 overflow-hidden select-none animate-in fade-in duration-150">
+    <div className="min-h-full lg:h-full lg:max-h-full flex flex-col lg:flex-row gap-4 lg:gap-3 overflow-visible lg:overflow-hidden select-none animate-in fade-in duration-150 pb-8 lg:pb-0">
       {/* LEFT AREA: Catalog, Categories & Barcode Search (70% width) */}
-      <div className="flex-1 min-h-0 flex flex-col bg-white rounded-3xl border border-slate-200/80 shadow-subtle overflow-hidden">
+      <div className="flex-1 min-h-[460px] lg:min-h-0 flex flex-col bg-white rounded-3xl border border-slate-200/80 shadow-subtle overflow-hidden">
         {/* Top Search & Barcode bar */}
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-3">
           {/* Text Search */}
@@ -591,11 +673,6 @@ export const Pos: React.FC = () => {
                 const isLowStock = product.stock_quantity <= product.min_stock;
                 const catObj = categoryMap.get(product.category_id || 0);
                 const catColor = getCategoryColor(catObj?.name, catObj?.color);
-                const barcodeShort = product.barcode
-                  ? product.barcode.slice(-4)
-                  : product.id
-                  ? String(1000 + product.id)
-                  : '1001';
 
                 return (
                   <button
@@ -657,22 +734,11 @@ export const Pos: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Bottom Card Body (Référence, Nom, Prix & Bouton Plus) */}
-                    <div className="p-2 sm:p-2.5 bg-white flex flex-col justify-between flex-1 w-full space-y-1">
-                      {/* Ligne Référence & Code-barres */}
-                      <div className="flex items-center justify-between text-[9px] font-mono font-bold">
-                        <span className="text-slate-400 truncate">
-                          {product.reference || `PRD-${String(product.id || 0).padStart(3, '0')}`}
-                        </span>
-                        <div className="flex items-center gap-0.5 text-[#0055b8] flex-shrink-0">
-                          <Barcode className="w-3 h-3 stroke-[2.2]" />
-                          <span>{barcodeShort}</span>
-                        </div>
-                      </div>
-
+                    {/* Bottom Card Body (Nom, Prix & Bouton Plus) */}
+                    <div className="p-2 sm:p-2.5 bg-white flex flex-col justify-between flex-1 w-full space-y-1.5">
                       {/* Nom du produit */}
                       <h4
-                        className="font-bold text-[11px] text-slate-900 group-hover:text-[#0055b8] transition line-clamp-1 leading-tight"
+                        className="font-bold text-[11px] text-slate-900 group-hover:text-[#0055b8] transition line-clamp-2 leading-tight"
                         title={product.name}
                       >
                         {product.name}
@@ -698,7 +764,7 @@ export const Pos: React.FC = () => {
       </div>
 
       {/* RIGHT AREA: Cart & POS Checkout Panel (30% width) */}
-      <div className="w-full lg:w-96 flex flex-col min-h-0 bg-white rounded-3xl border border-slate-200/80 shadow-subtle overflow-hidden flex-shrink-0">
+      <div className="w-full lg:w-96 flex flex-col min-h-[440px] lg:min-h-0 bg-white rounded-3xl border border-slate-200/80 shadow-subtle overflow-hidden flex-shrink-0">
         {/* Cart Header & Customer Selection */}
         <div className="p-4 border-b border-slate-100 space-y-3 bg-slate-50/50">
           <div className="flex items-center justify-between">
@@ -718,23 +784,33 @@ export const Pos: React.FC = () => {
             )}
           </div>
 
-          {/* Customer Selector */}
-          <div className="relative">
-            <Users className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <select
-              value={customer?.id || ''}
-              onChange={(e) => {
-                const found = customers.find((c) => c.id === Number(e.target.value));
-                setCustomer(found || null);
-              }}
-              className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary-500 transition"
+          {/* Customer Selector & Quick Add Button */}
+          <div className="flex items-center gap-1.5">
+            <div className="relative flex-1">
+              <Users className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <select
+                value={customer?.id || ''}
+                onChange={(e) => {
+                  const found = customers.find((c) => c.id === Number(e.target.value));
+                  setCustomer(found || null);
+                }}
+                className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#0055b8] transition cursor-pointer"
+              >
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.current_debt > 0 ? `(Dette: ${c.current_debt.toLocaleString()} F)` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenQuickAddCustomer}
+              className="p-2 rounded-xl bg-[#0055b8] hover:bg-blue-700 text-white font-bold transition shadow-xs flex-shrink-0 active:scale-95"
+              title="Ajouter un nouveau client"
             >
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} {c.current_debt > 0 ? `(Dette: ${c.current_debt.toLocaleString()} F)` : ''}
-                </option>
-              ))}
-            </select>
+              <UserPlus className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
@@ -826,8 +902,8 @@ export const Pos: React.FC = () => {
 
       {/* QUICK PAYMENT MODAL (POP-UP RÈGLEMENT SOBRE & MODERNE) */}
       {isPayModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150 select-none">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200/80 flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-150 select-none">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200/80 flex flex-col max-h-[92dvh] sm:max-h-[90vh]">
             
             {/* 1. Header Sobre & Épuré */}
             <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between bg-white">

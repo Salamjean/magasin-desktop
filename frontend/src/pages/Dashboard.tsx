@@ -578,73 +578,9 @@ export const Dashboard: React.FC = () => {
                     );
                   })
                 ) : (
-                  /* Fallback visual demo rows matching screenshot */
-                  <>
-                    <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100 flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-bold text-slate-900">Coca-Cola Canette 33cl</p>
-                        <p className="text-[10px] text-slate-400">
-                          58 minutes ago • Réception approvisionnement CMD-FOURN-20261005-001 •
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs font-black text-emerald-700">+200 canette</p>
-                        <span className="text-[9px] font-black text-emerald-700 uppercase">ENTRÉE</span>
-                      </div>
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100 flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-bold text-slate-900">Eau Minérale Céleste 1,5L</p>
-                        <p className="text-[10px] text-slate-400">
-                          58 minutes ago • Réception approvisionnement CMD-FOURN-20261005-001 •
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs font-black text-emerald-700">+320 bouteille</p>
-                        <span className="text-[9px] font-black text-emerald-700 uppercase">ENTRÉE</span>
-                      </div>
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100 flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-bold text-slate-900">Coca-Cola Canette 33cl</p>
-                        <p className="text-[10px] text-slate-400">
-                          18 hours ago • Stock initial au lancement •
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs font-black text-emerald-700">+120 canette</p>
-                        <span className="text-[9px] font-black text-emerald-700 uppercase">ENTRÉE</span>
-                      </div>
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100 flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-bold text-slate-900">Eau Minérale Céleste 1,5L</p>
-                        <p className="text-[10px] text-slate-400">
-                          18 hours ago • Stock initial au lancement •
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs font-black text-emerald-700">+4 bouteille</p>
-                        <span className="text-[9px] font-black text-emerald-700 uppercase">ENTRÉE</span>
-                      </div>
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100 flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-bold text-slate-900">Riz Parfumé Dinor 5kg</p>
-                        <p className="text-[10px] text-slate-400">
-                          18 hours ago • Stock initial au lancement •
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs font-black text-emerald-700">+45 sac</p>
-                        <span className="text-[9px] font-black text-emerald-700 uppercase">ENTRÉE</span>
-                      </div>
-                    </div>
-                  </>
+                  <div className="text-center py-8 text-slate-400 text-xs font-medium bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                    Aucun mouvement de stock récent enregistré.
+                  </div>
                 )}
               </div>
             </div>
@@ -667,7 +603,7 @@ export const Dashboard: React.FC = () => {
   // =========================================================================
   if (user?.role === 'livreur') {
     const myDeliveries = deliveries.filter(
-      (d) => !d.livreur_id || d.livreur_id === user?.id || user?.role === 'livreur' || user?.role === 'admin'
+      (d) => Number(d.livreur_id) === Number(user?.id)
     );
 
     const pendingDeliveries = myDeliveries.filter((d) => d.status === 'pending');
@@ -2054,6 +1990,11 @@ export const Dashboard: React.FC = () => {
   const activeSessions = cashSessions.filter((s) => s.status === 'open');
   const recentSales = sales.slice(0, 3);
 
+  const getCashierName = (userId: number) => {
+    const u = usersList.find((usr) => usr.id === userId);
+    return u?.name || 'Jean Koffi';
+  };
+
   const auditLogs: AuditLogItem[] = [
     ...deliveries.map((d) => ({
       id: `deliv-${d.id}`,
@@ -2084,11 +2025,6 @@ export const Dashboard: React.FC = () => {
     setSelectedSale(sale);
     setModalItems(items);
     setIsReceiptOpen(true);
-  };
-
-  const getCashierName = (userId: number) => {
-    const u = usersList.find((usr) => usr.id === userId);
-    return u?.name || 'Jean Koffi';
   };
 
   return (

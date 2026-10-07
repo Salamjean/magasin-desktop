@@ -15,6 +15,7 @@ import {
   Tag
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { syncService, API_BASE_URL } from '../db/syncService';
 
 export const Products: React.FC = () => {
   const navigate = useNavigate();
@@ -48,6 +49,8 @@ export const Products: React.FC = () => {
 
     loadData();
 
+    syncService.syncNow().catch((err) => console.warn('Sync error:', err));
+
     Swal.fire({
       icon: 'success',
       title: newStatus ? 'Article activé' : 'Article désactivé',
@@ -74,6 +77,11 @@ export const Products: React.FC = () => {
 
     if (confirm.isConfirmed) {
       await db.products.delete(p.id);
+      try {
+        await fetch(`${API_BASE_URL}/sync/products/${p.id}`, { method: 'DELETE' });
+      } catch (err) {
+        console.warn('Erreur suppression distante produit:', err);
+      }
       loadData();
       Swal.fire({ icon: 'success', title: 'Produit supprimé.', timer: 1800, showConfirmButton: false });
     }

@@ -1,14 +1,7 @@
 import { db } from './db';
 
 export const API_BASE_URL =
-  (import.meta as any).env?.VITE_API_URL ||
-  (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port === '5173'
-    ? 'http://localhost:5000/api'
-    : typeof window !== 'undefined' && window.location.protocol === 'file:'
-      ? 'https://magasin.fescad.net/api'
-      : typeof window !== 'undefined' && window.location.origin
-        ? `${window.location.origin}/api`
-        : 'https://magasin.fescad.net/api');
+  (import.meta as any).env?.VITE_API_URL || 'https://magasin.fescad.net/api';
 
 export interface SyncStatus {
   isOnline: boolean;
@@ -161,21 +154,30 @@ class SyncService {
       }
 
       // 2. Users
-      if (data.users && Array.isArray(data.users) && data.users.length > 0) {
-        await db.users.bulkPut(
-          data.users.map((u: any) => ({
-            id: u.id,
-            name: u.name,
-            email: u.email,
-            password: u.password,
-            role: u.role,
-            phone: u.phone || undefined,
-            avatar: u.avatar || undefined,
-            active: u.active === 1 || u.active === true || u.active === '1',
-            synced: 1,
-            created_at: u.created_at
-          }))
-        );
+      if (data.users && Array.isArray(data.users)) {
+        const remoteIds = new Set(data.users.map((u: any) => Number(u.id)));
+        const localUsers = await db.users.toArray();
+        const toDelete = localUsers.filter((lu) => lu.id && lu.synced === 1 && !remoteIds.has(lu.id));
+        if (toDelete.length > 0) {
+          await db.users.bulkDelete(toDelete.map((lu) => lu.id!));
+        }
+
+        if (data.users.length > 0) {
+          await db.users.bulkPut(
+            data.users.map((u: any) => ({
+              id: u.id,
+              name: u.name,
+              email: u.email,
+              password: u.password,
+              role: u.role,
+              phone: u.phone || undefined,
+              avatar: u.avatar || undefined,
+              active: u.active === 1 || u.active === true || u.active === '1',
+              synced: 1,
+              created_at: u.created_at
+            }))
+          );
+        }
       }
 
       // 3. Cash Registers
@@ -281,27 +283,33 @@ class SyncService {
         if (toDelete.length > 0) {
           await db.products.bulkDelete(toDelete.map((item) => item.id!));
         }
-        if (data.products.length > 0) {
-          await db.products.bulkPut(
-            data.products.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              reference: p.reference,
-              barcode: p.barcode,
-              category_id: p.category_id || undefined,
-              supplier_id: p.supplier_id || undefined,
-              user_id: p.user_id || undefined,
-              purchase_price: Number(p.purchase_price || 0),
-              selling_price: Number(p.selling_price || 0),
-              stock_quantity: Number(p.stock_quantity || 0),
-              min_stock: Number(p.min_stock || 5),
-              unit: p.unit || 'pièce',
-              image: p.image || undefined,
-              is_active: p.is_active === 1 || p.is_active === true || p.is_active === '1',
-              synced: 1,
-              created_at: p.created_at
-            }))
-          );
+
+        const unsyncedProducts = await db.products.where('synced').equals(0).toArray();
+        const unsyncedProdIds = new Set(unsyncedProducts.map((p) => p.id));
+
+        const prodsToPut = data.products
+          .filter((p: any) => !unsyncedProdIds.has(p.id))
+          .map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            reference: p.reference,
+            barcode: p.barcode,
+            category_id: p.category_id || undefined,
+            supplier_id: p.supplier_id || undefined,
+            user_id: p.user_id || undefined,
+            purchase_price: Number(p.purchase_price || 0),
+            selling_price: Number(p.selling_price || 0),
+            stock_quantity: Number(p.stock_quantity || 0),
+            min_stock: Number(p.min_stock || 5),
+            unit: p.unit || 'pièce',
+            image: p.image || undefined,
+            is_active: p.is_active === 1 || p.is_active === true || p.is_active === '1',
+            synced: 1,
+            created_at: p.created_at
+          }));
+
+        if (prodsToPut.length > 0) {
+          await db.products.bulkPut(prodsToPut);
         }
       }
 
@@ -461,7 +469,6 @@ class SyncService {
               payment_method: e.payment_method || 'cash',
               date: e.date,
               notes: e.notes || undefined,
-              receipt_image: e.receipt_image || undefined,
               synced: 1
             }))
           );
@@ -484,9 +491,8 @@ class SyncService {
               supplier_id: pur.supplier_id,
               user_id: pur.user_id || 1,
               total_amount: Number(pur.total_amount || 0),
-              status: pur.status || 'pending',
-              created_at: pur.created_at || pur.order_date,
-              delivery_date: pur.delivery_date || undefined,
+              status: pur.status || 'ordered',
+              created_at: pur.created_at || pur.order_date || new Date().toISOString(),
               notes: pur.notes || undefined,
               synced: 1
             }))
@@ -575,16 +581,19 @@ class SyncService {
           await db.deliveries.bulkPut(
             data.deliveries.map((d: any) => ({
               id: d.id,
-              sale_id: d.sale_id,
-              delivery_person_id: d.delivery_person_id || undefined,
-              customer_name: d.customer_name,
-              customer_phone: d.customer_phone || undefined,
-              delivery_address: d.delivery_address,
+              sale_id: d.sale_id ? Number(d.sale_id) : undefined,
+              customer_id: d.customer_id ? Number(d.customer_id) : undefined,
+              customer_name: d.customer_name || 'Client',
+              customer_phone: d.customer_phone || '',
+              delivery_address: d.delivery_address || 'Adresse',
+              amount_to_collect: Number(d.amount_to_collect || 0),
+              livreur_id: d.livreur_id ? Number(d.livreur_id) : (d.delivery_person_id ? Number(d.delivery_person_id) : undefined),
               status: d.status || 'pending',
-              otp_code: d.otp_code || undefined,
-              tracking_number: d.tracking_number || undefined,
+              otp_code: d.otp_code || '0000',
               notes: d.notes || undefined,
-              created_at: d.created_at,
+              items_json: d.items_json || undefined,
+              delivery_type: d.delivery_type || (d.sale_id ? 'sale' : 'free'),
+              created_at: d.created_at || new Date().toISOString(),
               delivered_at: d.delivered_at || undefined,
               synced: 1
             }))
@@ -643,6 +652,39 @@ class SyncService {
         db.settings.toArray()
       ]);
 
+function toMySQLDateTime(dateStr?: string | null): string {
+  if (!dateStr) {
+    const d = new Date();
+    return d.toISOString().slice(0, 19).replace('T', ' ');
+  }
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) {
+      const now = new Date();
+      return now.toISOString().slice(0, 19).replace('T', ' ');
+    }
+    return d.toISOString().slice(0, 19).replace('T', ' ');
+  } catch {
+    const now = new Date();
+    return now.toISOString().slice(0, 19).replace('T', ' ');
+  }
+}
+
+function toMySQLDate(dateStr?: string | null): string {
+  if (!dateStr) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) {
+      return new Date().toISOString().slice(0, 10);
+    }
+    return d.toISOString().slice(0, 10);
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
       const isSettingsDirty = sessionStorage.getItem('gestmag_settings_dirty') === 'true';
 
       const hasUnsynced =
@@ -667,26 +709,208 @@ class SyncService {
 
       if (!hasUnsynced) return true;
 
+      // Nettoyage et formatage strict des données pour compatibilité MySQL
+      const formattedProducts = unsyncedProducts.map(p => ({
+        id: p.id,
+        name: p.name || 'Produit sans nom',
+        reference: p.reference || `REF-${p.id || Date.now()}`,
+        barcode: p.barcode || `BAR-${p.id || Date.now()}`,
+        category_id: p.category_id || null,
+        supplier_id: p.supplier_id || null,
+        purchase_price: Number(p.purchase_price || 0),
+        selling_price: Number(p.selling_price || 0),
+        stock_quantity: Number(p.stock_quantity || 0),
+        min_stock: Number(p.min_stock || 5),
+        unit: p.unit || 'pcs',
+        image: p.image || null,
+        is_active: (p.is_active as any) === false || (p.is_active as any) === 0 ? 0 : 1,
+        user_id: p.user_id || 1,
+        created_at: toMySQLDateTime(p.created_at)
+      }));
+
+      const formattedStockMovements = unsyncedStockMovements.map(sm => ({
+        id: sm.id,
+        product_id: sm.product_id,
+        type: sm.type || 'adjustment',
+        quantity: Number(sm.quantity || 0),
+        reference: sm.reference || `MVT-${sm.id || Date.now()}`,
+        reason: sm.reason || 'Stock initial',
+        user_id: sm.user_id || 1,
+        created_at: toMySQLDateTime(sm.created_at)
+      }));
+
+      const formattedCategories = unsyncedCategories.map(c => ({
+        id: c.id,
+        name: c.name,
+        description: c.description || null,
+        icon: c.icon || 'Package',
+        color: c.color || '#0284c7'
+      }));
+
+      const formattedSuppliers = unsyncedSuppliers.map(s => ({
+        id: s.id,
+        name: s.name,
+        contact_name: s.contact_name || null,
+        email: s.email || null,
+        phone: s.phone || null,
+        address: s.address || null,
+        tax_number: s.tax_number || null,
+        notes: s.notes || null
+      }));
+
+      const formattedCustomers = unsyncedCustomers.map(c => ({
+        id: c.id,
+        name: c.name,
+        phone: c.phone || null,
+        email: c.email || null,
+        address: c.address || null,
+        credit_limit: Number(c.credit_limit || 0),
+        current_debt: Number(c.current_debt || 0),
+        loyalty_points: Number(c.loyalty_points || 0)
+      }));
+
+      const formattedSales = unsyncedSales.map(s => ({
+        id: s.id,
+        invoice_number: s.invoice_number,
+        user_id: s.user_id || 1,
+        customer_id: s.customer_id || null,
+        cash_session_id: s.cash_session_id || null,
+        subtotal: Number(s.subtotal || s.total_amount || 0),
+        discount_amount: Number(s.discount_amount || 0),
+        tax_amount: Number(s.tax_amount || 0),
+        total_amount: Number(s.total_amount || 0),
+        paid_amount: Number(s.paid_amount || 0),
+        change_amount: Number(s.change_amount || 0),
+        payment_method: s.payment_method || 'cash',
+        payment_status: s.payment_status || 'paid',
+        notes: s.notes || null,
+        created_at: toMySQLDateTime(s.created_at)
+      }));
+
+      const formattedSaleItems = unsyncedSaleItems.map(si => ({
+        id: si.id,
+        sale_id: si.sale_id,
+        product_id: si.product_id,
+        product_name: si.product_name || 'Article',
+        quantity: Number(si.quantity || 1),
+        unit_price: Number(si.unit_price || 0),
+        subtotal: Number(si.subtotal || 0)
+      }));
+
+      const formattedSessions = unsyncedSessions.map(cs => ({
+        id: cs.id,
+        cash_register_id: cs.cash_register_id || 1,
+        user_id: cs.user_id || 1,
+        opening_amount: Number(cs.opening_amount || 0),
+        closing_amount: cs.closing_amount !== undefined ? Number(cs.closing_amount) : null,
+        expected_closing_amount: cs.expected_closing_amount !== undefined ? Number(cs.expected_closing_amount) : null,
+        status: cs.status || 'open',
+        opened_at: toMySQLDateTime(cs.opened_at),
+        closed_at: cs.closed_at ? toMySQLDateTime(cs.closed_at) : null,
+        notes: cs.notes || null
+      }));
+
+      const formattedMovements = unsyncedMovements.map(cm => ({
+        id: cm.id,
+        cash_session_id: cm.cash_session_id,
+        type: cm.type || 'deposit',
+        amount: Number(cm.amount || 0),
+        reason: cm.reason || null,
+        created_at: toMySQLDateTime(cm.created_at)
+      }));
+
+      const formattedExpenses = unsyncedExpenses.map(e => ({
+        id: e.id,
+        user_id: e.user_id || 1,
+        title: e.title,
+        amount: Number(e.amount || 0),
+        category: e.category || 'Général',
+        payment_method: e.payment_method || 'cash',
+        date: toMySQLDate(e.date),
+        notes: e.notes || null,
+        receipt_image: (e as any).receipt_image || null
+      }));
+
+      const formattedPurchases = unsyncedPurchases.map(pur => ({
+        id: pur.id,
+        reference: pur.reference || `ACH-${pur.id || Date.now()}`,
+        supplier_id: pur.supplier_id,
+        user_id: pur.user_id || 1,
+        total_amount: Number(pur.total_amount || 0),
+        status: pur.status || 'pending',
+        created_at: toMySQLDateTime(pur.created_at),
+        delivery_date: (pur as any).delivery_date ? toMySQLDate((pur as any).delivery_date) : null,
+        notes: pur.notes || null
+      }));
+
+      const formattedPurchaseItems = unsyncedPurchaseItems.map(pi => ({
+        id: pi.id,
+        purchase_id: pi.purchase_id,
+        product_id: pi.product_id,
+        quantity: Number(pi.quantity || 1),
+        unit_price: Number(pi.unit_price || 0),
+        subtotal: Number(pi.subtotal || 0)
+      }));
+
+      const formattedInventories = unsyncedInventories.map(inv => ({
+        id: inv.id,
+        reference: inv.reference || `INV-${inv.id || Date.now()}`,
+        status: inv.status || 'draft',
+        user_id: inv.user_id || 1,
+        date: toMySQLDate(inv.date),
+        notes: inv.notes || null
+      }));
+
+      const formattedInventoryItems = unsyncedInventoryItems.map(ii => ({
+        id: ii.id,
+        inventory_id: ii.inventory_id,
+        product_id: ii.product_id,
+        theoretical_quantity: Number(ii.theoretical_quantity || 0),
+        real_quantity: Number(ii.real_quantity || 0),
+        difference: Number(ii.difference || 0),
+        cost_variance: Number(ii.cost_variance || 0)
+      }));
+
+      const formattedDeliveries = unsyncedDeliveries.map(d => ({
+        id: d.id,
+        sale_id: d.sale_id && Number(d.sale_id) > 0 ? Number(d.sale_id) : null,
+        customer_id: d.customer_id && Number(d.customer_id) > 0 ? Number(d.customer_id) : null,
+        livreur_id: d.livreur_id ? Number(d.livreur_id) : ((d as any).delivery_person_id ? Number((d as any).delivery_person_id) : null),
+        delivery_person_id: d.livreur_id ? Number(d.livreur_id) : null,
+        customer_name: d.customer_name || 'Client',
+        customer_phone: d.customer_phone || null,
+        delivery_address: d.delivery_address || 'Adresse',
+        amount_to_collect: Number(d.amount_to_collect || 0),
+        status: d.status || 'pending',
+        otp_code: d.otp_code || null,
+        tracking_number: (d as any).tracking_number || null,
+        notes: d.notes || null,
+        items_json: d.items_json || null,
+        delivery_type: d.delivery_type || (d.sale_id ? 'sale' : 'free'),
+        created_at: toMySQLDateTime(d.created_at),
+        delivered_at: d.delivered_at ? toMySQLDateTime(d.delivered_at) : null
+      }));
+
       const payload = {
         tables: {
           users: unsyncedUsers,
           settings: allSettings,
           cash_registers: unsyncedRegisters,
-          products: unsyncedProducts,
-          categories: unsyncedCategories,
-          suppliers: unsyncedSuppliers,
-          customers: unsyncedCustomers,
-          sales: unsyncedSales,
-          sale_items: unsyncedSaleItems,
-          cash_sessions: unsyncedSessions,
-          cash_movements: unsyncedMovements,
-          stock_movements: unsyncedStockMovements,
-          expenses: unsyncedExpenses,
-          purchases: unsyncedPurchases,
-          purchase_items: unsyncedPurchaseItems,
-          inventories: unsyncedInventories,
-          inventory_items: unsyncedInventoryItems,
-          deliveries: unsyncedDeliveries
+          categories: formattedCategories,
+          suppliers: formattedSuppliers,
+          customers: formattedCustomers,
+          products: formattedProducts,
+          stock_movements: formattedStockMovements,
+          cash_sessions: formattedSessions,
+          cash_movements: formattedMovements,
+          sales: formattedSales,
+          sale_items: formattedSaleItems,
+          expenses: formattedExpenses,
+          purchases: formattedPurchases,
+          purchase_items: formattedPurchaseItems,
+          inventories: formattedInventories,
+          inventory_items: formattedInventoryItems,
+          deliveries: formattedDeliveries
         }
       };
 
@@ -696,17 +920,76 @@ class SyncService {
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) return false;
-      const json = await res.json();
-      if (!json.success) return false;
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success) {
+          sessionStorage.removeItem('gestmag_settings_dirty');
+          await this.markAllAsSynced();
+          return true;
+        }
+      }
 
-      sessionStorage.removeItem('gestmag_settings_dirty');
+      // Fallback par table : si le lot global est rejeté par le serveur, envoyer table par table
+      console.warn('Batch sync push rejeté, tentative de synchronisation par module...');
+      let anySuccess = false;
 
-      // Marquer localement comme synchronisé
-      await this.markAllAsSynced();
-      return true;
+      for (const [tableName, items] of Object.entries(payload.tables)) {
+        if (Array.isArray(items) && items.length > 0) {
+          try {
+            const tableRes = await fetch(`${API_BASE_URL}/sync/push`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ tables: { [tableName]: items } })
+            });
+            if (tableRes.ok) {
+              const tableJson = await tableRes.json();
+              if (tableJson.success) {
+                anySuccess = true;
+                const dbTable = (db as any)[tableName];
+                if (dbTable && typeof dbTable.where === 'function') {
+                  await dbTable.where('synced').equals(0).modify({ synced: 1 });
+                }
+              }
+            }
+          } catch (tErr) {
+            console.warn(`Erreur sync module ${tableName}:`, tErr);
+          }
+        }
+      }
+
+      return anySuccess;
     } catch (err) {
       console.warn('Erreur pushToRemote:', err);
+      return false;
+    }
+  }
+
+  // Réinitialisation et resynchronisation complète depuis le serveur de production
+  public async resetAndResyncFromRemote(): Promise<boolean> {
+    try {
+      await Promise.all([
+        db.products.clear(),
+        db.categories.clear(),
+        db.suppliers.clear(),
+        db.customers.clear(),
+        db.sales.clear(),
+        db.sale_items.clear(),
+        db.stock_movements.clear(),
+        db.cash_sessions.clear(),
+        db.cash_movements.clear(),
+        db.expenses.clear(),
+        db.purchases.clear(),
+        db.purchase_items.clear(),
+        db.inventories.clear(),
+        db.inventory_items.clear(),
+        db.deliveries.clear(),
+      ]);
+
+      const pulled = await this.pullFromRemote();
+      window.dispatchEvent(new Event('gestmag:data_synced'));
+      return pulled;
+    } catch (err) {
+      console.error('Erreur resetAndResyncFromRemote:', err);
       return false;
     }
   }
@@ -721,22 +1004,34 @@ class SyncService {
 
     try {
       // 1. PUSH : Envoyer les modifications locales en attente
-      await this.pushToRemote();
+      const pushOk = await this.pushToRemote();
 
       // 2. PULL : Récupérer les données à jour depuis MySQL
-      await this.pullFromRemote();
+      const pullOk = await this.pullFromRemote();
 
+      const unsynced = await this.getUnsyncedCount();
+      this.currentStatus.unsyncedCount = unsynced;
       this.currentStatus.lastSyncTime = new Date().toLocaleTimeString('fr-FR');
-      this.currentStatus.unsyncedCount = 0;
-      this.currentStatus.message = 'Synchronisé avec MySQL';
       this.currentStatus.isSyncing = false;
       this.isSyncing = false;
-      this.notify();
 
-      return { success: true, message: 'Synchronisation réussie avec MySQL' };
+      if (pushOk && pullOk) {
+        this.currentStatus.message = 'Synchronisé avec MySQL';
+        this.notify();
+        return { success: true, message: 'Synchronisation réussie avec MySQL' };
+      } else if (!pushOk) {
+        this.currentStatus.message = 'Échec de l’envoi des données vers MySQL';
+        this.notify();
+        return { success: false, message: 'Échec de l’envoi des données locales' };
+      } else {
+        this.currentStatus.message = 'Données envoyées, erreur de mise à jour locale';
+        this.notify();
+        return { success: false, message: 'Échec de la récupération des données' };
+      }
     } catch (err: any) {
       this.currentStatus.isSyncing = false;
       this.isSyncing = false;
+      this.currentStatus.unsyncedCount = await this.getUnsyncedCount();
       this.currentStatus.message = `Erreur sync: ${err.message}`;
       this.notify();
       return { success: false, message: err.message };
@@ -745,23 +1040,23 @@ class SyncService {
 
   private async markAllAsSynced() {
     await Promise.all([
-      db.users.toCollection().modify({ synced: 1 }),
-      db.categories.toCollection().modify({ synced: 1 }),
-      db.products.toCollection().modify({ synced: 1 }),
-      db.suppliers.toCollection().modify({ synced: 1 }),
-      db.customers.toCollection().modify({ synced: 1 }),
-      db.cash_registers.toCollection().modify({ synced: 1 }),
-      db.sales.toCollection().modify({ synced: 1 }),
-      db.sale_items.toCollection().modify({ synced: 1 }),
-      db.stock_movements.toCollection().modify({ synced: 1 }),
-      db.deliveries.toCollection().modify({ synced: 1 }),
-      db.expenses.toCollection().modify({ synced: 1 }),
-      db.inventories.toCollection().modify({ synced: 1 }),
-      db.inventory_items.toCollection().modify({ synced: 1 }),
-      db.purchases.toCollection().modify({ synced: 1 }),
-      db.purchase_items.toCollection().modify({ synced: 1 }),
-      db.cash_sessions.toCollection().modify({ synced: 1 }),
-      db.cash_movements.toCollection().modify({ synced: 1 }),
+      db.users.where('synced').equals(0).modify({ synced: 1 }),
+      db.categories.where('synced').equals(0).modify({ synced: 1 }),
+      db.products.where('synced').equals(0).modify({ synced: 1 }),
+      db.suppliers.where('synced').equals(0).modify({ synced: 1 }),
+      db.customers.where('synced').equals(0).modify({ synced: 1 }),
+      db.cash_registers.where('synced').equals(0).modify({ synced: 1 }),
+      db.sales.where('synced').equals(0).modify({ synced: 1 }),
+      db.sale_items.where('synced').equals(0).modify({ synced: 1 }),
+      db.stock_movements.where('synced').equals(0).modify({ synced: 1 }),
+      db.deliveries.where('synced').equals(0).modify({ synced: 1 }),
+      db.expenses.where('synced').equals(0).modify({ synced: 1 }),
+      db.inventories.where('synced').equals(0).modify({ synced: 1 }),
+      db.inventory_items.where('synced').equals(0).modify({ synced: 1 }),
+      db.purchases.where('synced').equals(0).modify({ synced: 1 }),
+      db.purchase_items.where('synced').equals(0).modify({ synced: 1 }),
+      db.cash_sessions.where('synced').equals(0).modify({ synced: 1 }),
+      db.cash_movements.where('synced').equals(0).modify({ synced: 1 }),
     ]);
   }
 }

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { resizeImage } from '../utils/imageUtils';
+import { syncService } from '../db/syncService';
 
 export const ProductEdit: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -131,6 +132,9 @@ export const ProductEdit: React.FC = () => {
         is_active: formData.is_active,
         synced: 0
       });
+
+      // Synchronisation immédiate avec le serveur
+      syncService.syncNow().catch((err) => console.warn('Sync error:', err));
 
       await Swal.fire({
         icon: 'success',

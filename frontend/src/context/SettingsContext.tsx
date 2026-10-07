@@ -73,6 +73,31 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, [refreshSettings]);
 
+  // Synchronisation dynamique du Favicon et du Titre du document selon le logo et nom du magasin
+  useEffect(() => {
+    const logoUrl = settings.company_logo || (settings as any).logo;
+    if (logoUrl && typeof document !== 'undefined') {
+      let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.getElementsByTagName('head')[0].appendChild(link);
+      }
+      link.href = logoUrl;
+    }
+    if (settings.company_name && typeof document !== 'undefined') {
+      document.title = settings.company_name;
+    }
+
+    // Synchroniser avec la fenêtre Electron native
+    if (typeof window !== 'undefined' && (window as any).electronAPI?.updateAppBranding) {
+      (window as any).electronAPI.updateAppBranding({
+        name: settings.company_name,
+        logo: logoUrl
+      }).catch(() => {});
+    }
+  }, [settings.company_logo, settings.company_name, (settings as any).logo]);
+
   const updateSettings = async (newSettings: Partial<StoreSettings> | Record<string, string>) => {
     try {
       for (const [key, value] of Object.entries(newSettings)) {
@@ -83,6 +108,16 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ...prev,
         ...newSettings
       }));
+
+      // Synchroniser avec Electron immédiatement
+      const updatedName = newSettings.company_name || settings.company_name;
+      const updatedLogo = newSettings.company_logo || (newSettings as any).logo || settings.company_logo;
+      if (typeof window !== 'undefined' && (window as any).electronAPI?.updateAppBranding) {
+        (window as any).electronAPI.updateAppBranding({
+          name: updatedName,
+          logo: updatedLogo
+        }).catch(() => {});
+      }
 
       // Marquer pour la synchronisation montante vers MySQL
       sessionStorage.setItem('gestmag_settings_dirty', 'true');

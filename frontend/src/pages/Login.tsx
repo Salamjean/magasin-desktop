@@ -7,10 +7,10 @@ import { Logo } from '../components/Logo';
 import Swal from 'sweetalert2';
 
 export const Login: React.FC = () => {
-  const [identifier, setIdentifier] = useState('admin@gestmagasin.com');
-  const [password, setPassword] = useState('admin123');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const { settings } = useSettings();
@@ -59,7 +59,7 @@ export const Login: React.FC = () => {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleLogin} className="space-y-3.5">
+        <form onSubmit={handleLogin} className="space-y-3.5" autoComplete="off">
           {/* Identifiant Input (Email pour Admin, Téléphone pour les autres) */}
           <div>
             <label className="block text-[11px] font-bold text-slate-700 mb-1">Identifiant</label>
@@ -68,6 +68,7 @@ export const Login: React.FC = () => {
               <input
                 type="text"
                 required
+                autoComplete="off"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 placeholder="Email (Admin) ou N° Téléphone"
@@ -84,6 +85,7 @@ export const Login: React.FC = () => {
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"

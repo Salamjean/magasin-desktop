@@ -29,6 +29,7 @@ export const DeliveryDetail: React.FC = () => {
   const [delivery, setDelivery] = useState<Delivery | null>(null);
   const [sale, setSale] = useState<Sale | null>(null);
   const [livreurs, setLivreurs] = useState<User[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [deliveryNote, setDeliveryNote] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -58,9 +59,17 @@ export const DeliveryDetail: React.FC = () => {
         if (s) setSale(s);
       }
 
-      const livs = await db.users.where('role').equals('livreur').toArray();
-      const allUsers = await db.users.toArray();
-      setLivreurs(livs.length > 0 ? livs : allUsers);
+      const users = await db.users.toArray();
+      const livs = users.filter(
+        (u) =>
+          u.role === 'livreur' &&
+          u.active !== false &&
+          (u.active as any) !== 0 &&
+          (u.active as any) !== '0' &&
+          (u.active as any) !== 'false'
+      );
+      setAllUsers(users);
+      setLivreurs(livs);
     } catch (err) {
       console.error(err);
     } finally {
@@ -219,7 +228,7 @@ export const DeliveryDetail: React.FC = () => {
   }
 
   const items = getDeliveryItems();
-  const currentLivreur = livreurs.find((l) => l.id === delivery.livreur_id);
+  const currentLivreur = allUsers.find((l) => Number(l.id) === Number(delivery.livreur_id)) || livreurs.find((l) => Number(l.id) === Number(delivery.livreur_id));
 
   const courseCode = `LIV-${delivery.created_at ? delivery.created_at.substring(0, 10).replace(/-/g, '') : '20261005'}-${String(delivery.id).padStart(4, '0')}`;
   const saleCode = sale?.invoice_number || (delivery.sale_id ? `#VNT-20261005-${String(delivery.sale_id).padStart(4, '0')}` : '#VNT-DIRECTE');
@@ -449,100 +458,149 @@ export const DeliveryDetail: React.FC = () => {
         {/* ========================================================= */}
         <div className="lg:col-span-5 space-y-6">
           
-          {/* CARTE VERTE : REMISE AU DESTINATAIRE */}
-          <div className="bg-white rounded-3xl border-2 border-emerald-500 p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold flex-shrink-0 border border-emerald-200">
-                <CheckCircle2 className="w-5 h-5" />
+          {user?.role !== 'livreur' ? (
+            /* CARTE ADMIN / GESTION : SUIVI EN TEMPS RÉEL (SANS BOUTONS D'ACTION) */
+            <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-xs space-y-4">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 text-[#0055b8] flex items-center justify-center font-bold flex-shrink-0 border border-blue-100">
+                  <Bike className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-sm">
+                    Suivi de Livraison (Administration)
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    Consultation et état d'avancement de la course
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-black text-slate-900 text-base">
-                  Remise au Destinataire
-                </h3>
-                <p className="text-xs text-slate-500 font-medium">
-                  Confirmez que la livraison a bien été effectuée.
-                </p>
-              </div>
-            </div>
 
-            {/* ÉTAT : EN ROUTE OU À DÉMARRER */}
-            {!isDelivered && !isFailed && (
-              <div className="space-y-4 pt-1">
+              {/* Statut visuel */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2 text-center">
+                <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
+                  ÉTAT DE LA COURSE
+                </span>
                 {isPending && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-50 text-amber-800 border border-amber-200 uppercase">
+                    <span>En attente de prise en charge</span>
+                  </div>
+                )}
+                {isInTransit && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-blue-50 text-[#0055b8] border border-blue-200 uppercase">
+                    <span className="w-2 h-2 rounded-full bg-[#0055b8] animate-pulse" />
+                    <span>En cours d'acheminement</span>
+                  </div>
+                )}
+                {isDelivered && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
+                    <span>✓ Livrée au destinataire</span>
+                  </div>
+                )}
+                {isFailed && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-700 border border-rose-200 uppercase">
+                    <span>✕ Échec / Course annulée</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Sécurité : le code OTP est strictement confidentiel pour le destinataire et n'est pas affiché à l'administration */}
+            </div>
+          ) : (
+            /* CARTE LIVREUR : REMISE AU DESTINATAIRE */
+            <div className="bg-white rounded-3xl border-2 border-emerald-500 p-5 sm:p-6 shadow-xs space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold flex-shrink-0 border border-emerald-200">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">
+                    Remise au Destinataire
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Confirmez que la livraison a bien été effectuée.
+                  </p>
+                </div>
+              </div>
+
+              {/* ÉTAT : EN ROUTE OU À DÉMARRER */}
+              {!isDelivered && !isFailed && (
+                <div className="space-y-4 pt-1">
+                  {isPending && (
+                    <button
+                      type="button"
+                      disabled={submitting}
+                      onClick={handleStartDelivery}
+                      className="w-full py-3 px-4 rounded-2xl bg-[#0055b8] hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <Play className="w-4 h-4 fill-white" />
+                      <span>Démarrer la course / En route</span>
+                    </button>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 block">
+                      Note de livraison (facultatif)
+                    </label>
+                    <input
+                      type="text"
+                      value={deliveryNote}
+                      onChange={(e) => setDeliveryNote(e.target.value)}
+                      placeholder="Ex: Remis en mains propres..."
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
+                    />
+                  </div>
+
                   <button
                     type="button"
                     disabled={submitting}
-                    onClick={handleStartDelivery}
-                    className="w-full py-3 px-4 rounded-2xl bg-[#0055b8] hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition active:scale-95 flex items-center justify-center gap-2"
+                    onClick={handleConfirmDelivered}
+                    className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition active:scale-95 flex items-center justify-center gap-2"
                   >
-                    <Play className="w-4 h-4 fill-white" />
-                    <span>Démarrer la course / En route</span>
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>Confirmer la livraison</span>
                   </button>
-                )}
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">
-                    Note de livraison (facultatif)
-                  </label>
-                  <input
-                    type="text"
-                    value={deliveryNote}
-                    onChange={(e) => setDeliveryNote(e.target.value)}
-                    placeholder="Ex: Remis en mains propres..."
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
-                  />
+                  <div className="text-center pt-1">
+                    <button
+                      type="button"
+                      onClick={handleReportIssue}
+                      className="text-xs font-bold text-rose-600 hover:text-rose-700 inline-flex items-center gap-1.5 hover:underline"
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <span>Signaler un problème ou échec</span>
+                    </button>
+                  </div>
                 </div>
+              )}
 
-                <button
-                  type="button"
-                  disabled={submitting}
-                  onClick={handleConfirmDelivered}
-                  className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <Check className="w-4 h-4 stroke-[3]" />
-                  <span>Confirmer la livraison</span>
-                </button>
-
-                <div className="text-center pt-1">
-                  <button
-                    type="button"
-                    onClick={handleReportIssue}
-                    className="text-xs font-bold text-rose-600 hover:text-rose-700 inline-flex items-center gap-1.5 hover:underline"
-                  >
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>Signaler un problème ou échec</span>
-                  </button>
+              {/* ÉTAT : DÉJÀ LIVRÉE */}
+              {isDelivered && (
+                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-2">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500 text-white mx-auto flex items-center justify-center font-bold">
+                    ✓
+                  </div>
+                  <p className="font-black text-emerald-900 text-xs">
+                    Livraison finalisée avec succès
+                  </p>
+                  <p className="text-[11px] text-emerald-700">
+                    Le colis a été remis au destinataire.
+                  </p>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* ÉTAT : DÉJÀ LIVRÉE */}
-            {isDelivered && (
-              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-2">
-                <div className="w-8 h-8 rounded-full bg-emerald-500 text-white mx-auto flex items-center justify-center font-bold">
-                  ✓
+              {/* ÉTAT : ÉCHEC OU ANNULATION */}
+              {isFailed && (
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-center space-y-2">
+                  <div className="w-8 h-8 rounded-full bg-rose-500 text-white mx-auto flex items-center justify-center font-bold">
+                    ✕
+                  </div>
+                  <p className="font-black text-rose-900 text-xs">
+                    Course signalée en échec / annulée
+                  </p>
                 </div>
-                <p className="font-black text-emerald-900 text-xs">
-                  Livraison finalisée avec succès
-                </p>
-                <p className="text-[11px] text-emerald-700">
-                  Le colis a été remis au destinataire.
-                </p>
-              </div>
-            )}
-
-            {/* ÉTAT : ÉCHEC OU ANNULATION */}
-            {isFailed && (
-              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-center space-y-2">
-                <div className="w-8 h-8 rounded-full bg-rose-500 text-white mx-auto flex items-center justify-center font-bold">
-                  ✕
-                </div>
-                <p className="font-black text-rose-900 text-xs">
-                  Course signalée en échec / annulée
-                </p>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* CARTE : INFORMATIONS COMPLÉMENTAIRES */}
           <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-3.5">
@@ -554,7 +612,7 @@ export const DeliveryDetail: React.FC = () => {
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <span className="text-slate-500 font-medium">Livreur en charge :</span>
                 <span className="font-bold text-slate-900">
-                  {currentLivreur?.name || user?.name || 'Moussa Koné'}
+                  {currentLivreur ? currentLivreur.name : (delivery.livreur_id ? `Livreur #${delivery.livreur_id}` : 'Non assigné')}
                 </span>
               </div>
 

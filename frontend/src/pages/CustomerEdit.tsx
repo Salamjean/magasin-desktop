@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { db, Customer } from '../db/db';
+import { useAuth } from '../context/AuthContext';
 import {
   Users,
   ArrowLeft,
@@ -10,13 +11,17 @@ import {
   MapPin,
   Coins,
   Check,
-  Building2
+  Building2,
+  Lock,
+  ShieldAlert
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 export const CustomerEdit: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const isAdmin = user?.role === 'admin';
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState({
@@ -76,12 +81,15 @@ export const CustomerEdit: React.FC = () => {
 
     setSubmitting(true);
     try {
+      // Seul l'administrateur peut modifier le solde financier de la dette directement
+      const finalDebt = isAdmin ? (Number(formData.current_debt) || 0) : (customer.current_debt || 0);
+
       await db.customers.update(customer.id, {
         name: fullName,
         phone: formData.phone.trim() || undefined,
         email: formData.email.trim() || undefined,
         address: formData.address.trim() || undefined,
-        current_debt: Number(formData.current_debt) || 0,
+        current_debt: finalDebt,
         synced: 0
       });
 
@@ -231,7 +239,7 @@ export const CustomerEdit: React.FC = () => {
           </div>
         </div>
 
-        {/* COLONNE DROITE : DETTE ACTUELLE */}
+        {/* COLONNE DROITE : DETTE ACTUELLE / SITUATION FINANCIÈRE */}
         <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-subtle space-y-5">
           <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
             <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
@@ -239,29 +247,47 @@ export const CustomerEdit: React.FC = () => {
             </div>
             <div>
               <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider">SITUATION FINANCIÈRE</h2>
-              <p className="text-[11px] text-slate-400 font-medium">Solde de dette actuel</p>
+              <p className="text-[11px] text-slate-400 font-medium">Solde de dette client</p>
             </div>
           </div>
 
-          {/* Solde de dette */}
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700">
-              Solde de dette actuel (FCFA)
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={formData.current_debt}
-                onChange={(e) => setFormData({ ...formData, current_debt: Number(e.target.value) })}
-                className="w-full pl-4 pr-16 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-black font-mono text-slate-900 focus:outline-none focus:border-[#0055b8] focus:bg-white transition"
-              />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-xs text-slate-400">
-                FCFA
-              </span>
+          {/* Solde de dette modifiable uniquement par l'admin */}
+          {isAdmin ? (
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700">
+                Solde de dette actuel (FCFA) <span className="text-xs font-normal text-slate-400">(Ajustement Administrateur)</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={formData.current_debt}
+                  onChange={(e) => setFormData({ ...formData, current_debt: Number(e.target.value) })}
+                  className="w-full pl-4 pr-16 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-black font-mono text-slate-900 focus:outline-none focus:border-[#0055b8] focus:bg-white transition"
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-xs text-slate-400">
+                  FCFA
+                </span>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/70 space-y-2">
+              <div className="flex items-center gap-2 text-amber-800 text-xs font-bold">
+                <Lock className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                <span>Modification de la dette réservée à l'administrateur</span>
+              </div>
+              <div className="pt-2 border-t border-amber-200/40 flex items-center justify-between">
+                <span className="text-xs text-slate-600 font-semibold">Solde de dette actuel :</span>
+                <span className="text-sm font-black font-mono text-amber-900">
+                  {(customer.current_debt || 0).toLocaleString('fr-FR')} FCFA
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-normal">
+                Les règlements d'acomptes et paiements de dette doivent être effectués via le bouton <strong>"Règlement"</strong> pour traçabilité et encaissement en caisse.
+              </p>
+            </div>
+          )}
 
           {/* Boutons d'action */}
           <div className="pt-6 border-t border-slate-100 flex items-center justify-end gap-3">
@@ -287,3 +313,4 @@ export const CustomerEdit: React.FC = () => {
     </div>
   );
 };
+

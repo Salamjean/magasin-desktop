@@ -1,12 +1,21 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, nativeImage } from 'electron';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import mysql from 'mysql2/promise';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Prevent GPU disk cache lock errors on Windows development
+// Prevent GPU and disk cache lock errors on Windows development
+app.commandLine.appendSwitch('disable-gpu');
+app.commandLine.appendSwitch('disable-gpu-compositing');
+app.commandLine.appendSwitch('disable-gpu-rasterization');
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+app.commandLine.appendSwitch('no-sandbox');
+
+if (!app.isPackaged) {
+  app.setPath('userData', path.join(app.getPath('appData'), 'gestmagasin-desktop-dev'));
+}
 
 process.env.DIST = path.join(__dirname, '../dist');
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public');
@@ -29,16 +38,45 @@ if (app.isPackaged) {
 let mainWindow: BrowserWindow | null = null;
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
 
+// Récupérer le branding persistant enregistré localement
+function getSavedBranding(): { name?: string; logo?: string } {
+  try {
+    const brandingPath = path.join(app.getPath('userData'), 'branding.json');
+    if (fs.existsSync(brandingPath)) {
+      return JSON.parse(fs.readFileSync(brandingPath, 'utf8'));
+    }
+  } catch (_) {}
+  return { name: 'GestMagasin Pro' };
+}
+
 function createWindow() {
+  const savedBranding = getSavedBranding();
+  const defaultIconPath = path.join(process.env.VITE_PUBLIC, 'logo.png');
+
+  let windowIcon: Electron.NativeImage | undefined;
+  if (savedBranding.logo) {
+    try {
+      if (savedBranding.logo.startsWith('data:image')) {
+        windowIcon = nativeImage.createFromDataURL(savedBranding.logo);
+      } else if (fs.existsSync(savedBranding.logo)) {
+        windowIcon = nativeImage.createFromPath(savedBranding.logo);
+      }
+    } catch (_) {}
+  }
+  if (!windowIcon && fs.existsSync(defaultIconPath)) {
+    windowIcon = nativeImage.createFromPath(defaultIconPath);
+  }
+
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    title: 'GestMagasin Pro',
+    title: savedBranding.name || 'GestMagasin Pro',
+    icon: windowIcon,
     backgroundColor: '#0055b8',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: false
@@ -59,9 +97,26 @@ function createWindow() {
 
   loadApp();
 
-  // Ouvrir les DevTools en mode développement si besoin d'inspection
-  if (VITE_DEV_SERVER_URL) {
-    // mainWindow.webContents.openDevTools({ mode: 'detach' });
+  // Afficher les erreurs et logs du renderer directement dans le terminal
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    console.log(`[Renderer Console L${level}] ${message} (${sourceId}:${line})`);
+  });
+
+  // Permettre d'ouvrir les DevTools avec F12 ou Ctrl+Shift+I pour faciliter le diagnostic
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12' || (input.control && input.shift && input.key.toLowerCase() === 'i')) {
+      mainWindow?.webContents.toggleDevTools();
+      event.preventDefault();
+    }
+  });
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.error(`Erreur de chargement de ${validatedURL}: ${errorCode} - ${errorDescription}`);
+  });
+
+  // Ouvrir automatiquement les DevTools si non packagé ou pour déboguer
+  if (!app.isPackaged || VITE_DEV_SERVER_URL) {
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 }
 
@@ -158,3 +213,42 @@ ipcMain.handle('print-receipt', async (_event, _options) => {
     return { success: false, error: err.message };
   }
 });
+
+// ==========================================
+// IPC HANDLERS: Dynamic App Branding (Name & Logo)
+// ==========================================
+ipcMain.handle('update-app-branding', async (_event, data: { name?: string; logo?: string }) => {
+  if (data.name && mainWindow) {
+    mainWindow.setTitle(data.name);
+  }
+  if (data.logo && mainWindow) {
+    try {
+      let iconImg: Electron.NativeImage | undefined;
+      if (data.logo.startsWith('data:image')) {
+        iconImg = nativeImage.createFromDataURL(data.logo);
+      } else if (fs.existsSync(data.logo)) {
+        iconImg = nativeImage.createFromPath(data.logo);
+      }
+      if (iconImg && !iconImg.isEmpty()) {
+        mainWindow.setIcon(iconImg);
+      }
+    } catch (err) {
+      console.error('[Electron] Erreur mise à jour icône:', err);
+    }
+  }
+
+  // Persister dans le stockage de l'application
+  try {
+    const brandingPath = path.join(app.getPath('userData'), 'branding.json');
+    fs.writeFileSync(brandingPath, JSON.stringify(data, null, 2), 'utf8');
+  } catch (err) {
+    console.error('[Electron] Erreur sauvegarde branding:', err);
+  }
+
+  return { success: true };
+});
+
+ipcMain.handle('get-app-branding', async () => {
+  return getSavedBranding();
+});
+

@@ -76,19 +76,68 @@ export const DeliveryCreate: React.FC = () => {
     try {
       const prods = await db.products.toArray();
       const custs = await db.customers.toArray();
-      const livs = await db.users.where('role').equals('livreur').toArray();
       const allUsers = await db.users.toArray();
+      const livs = allUsers.filter(
+        (u) =>
+          u.role === 'livreur' &&
+          u.active !== false &&
+          (u.active as any) !== 0 &&
+          (u.active as any) !== '0' &&
+          (u.active as any) !== 'false'
+      );
       const sales = await db.sales.reverse().limit(50).toArray();
+      const allDeliveries = await db.deliveries.toArray();
+      const deliveredSaleIdSet = new Set(
+        allDeliveries
+          .filter((d) => d.sale_id && d.status === 'delivered')
+          .map((d) => d.sale_id!)
+      );
+      const inProgressSaleIdSet = new Set(
+        allDeliveries
+          .filter((d) => d.sale_id && (d.status === 'pending' || d.status === 'in_transit'))
+          .map((d) => d.sale_id!)
+      );
+
+      // On filtre pour ne proposer que les ventes non encore livrées ni en cours
+      const eligibleSales = sales.filter((s) => !deliveredSaleIdSet.has(s.id!));
 
       setProducts(prods.filter((p) => p.is_active !== false));
       setCustomers(custs);
-      setLivreurs(livs.length > 0 ? livs : allUsers);
-      setRecentSales(sales);
+      setLivreurs(livs);
+      setRecentSales(eligibleSales);
 
       // Vérifier si un saleId a été transmis via location.state ou query params
       const searchParams = new URLSearchParams(window.location.search);
       const passedSaleId = (location.state as any)?.saleId || searchParams.get('sale_id');
       if (passedSaleId) {
+        const numSaleId = Number(passedSaleId);
+        if (deliveredSaleIdSet.has(numSaleId)) {
+          await Swal.fire({
+            icon: 'warning',
+            title: 'Livraison déjà effectuée',
+            text: 'Cette vente a déjà été marquée comme LIVRÉE par le livreur. Il est impossible de reprogrammer une nouvelle livraison pour cette commande.',
+            confirmButtonColor: '#0055b8'
+          });
+          navigate('/deliveries');
+          return;
+        }
+
+        if (inProgressSaleIdSet.has(numSaleId)) {
+          const res = await Swal.fire({
+            icon: 'info',
+            title: 'Livraison déjà en cours',
+            text: 'Une livraison est déjà active ou en cours d\'acheminement pour cette vente.',
+            showCancelButton: true,
+            confirmButtonText: 'Voir les livraisons',
+            cancelButtonText: 'Continuer quand même',
+            confirmButtonColor: '#0055b8'
+          });
+          if (res.isConfirmed) {
+            navigate('/deliveries');
+            return;
+          }
+        }
+
         setDeliveryType('sale');
         setTimeout(() => {
           handleSaleSelect(String(passedSaleId));
@@ -245,6 +294,23 @@ export const DeliveryCreate: React.FC = () => {
     if (!assignedLivreurId) {
       Swal.fire('Champ requis', 'Veuillez obligatoirement sélectionner et assigner un coursier / livreur.', 'warning');
       return;
+    }
+
+    if (deliveryType === 'sale' && selectedSaleId) {
+      const existingDel = await db.deliveries
+        .where('sale_id')
+        .equals(Number(selectedSaleId))
+        .toArray();
+      const alreadyDelivered = existingDel.some((d) => d.status === 'delivered');
+      if (alreadyDelivered) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Livraison déjà effectuée',
+          text: 'Cette commande a déjà été marquée comme LIVRÉE par le livreur. Il est impossible de reprogrammer une nouvelle livraison.',
+          confirmButtonColor: '#0055b8'
+        });
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -815,10 +881,14 @@ export const DeliveryCreate: React.FC = () => {
                     onChange={(e) => setAssignedLivreurId(e.target.value)}
                     className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-semibold text-xs text-slate-800 focus:outline-none focus:border-[#0055b8]"
                   >
-                    <option value="">-- Choisir un coursier obligatoire --</option>
+                    <option value="">
+                      {livreurs.length === 0
+                        ? '-- Aucun livreur/coursier enregistré --'
+                        : '-- Choisir un coursier / livreur --'}
+                    </option>
                     {livreurs.map((l) => (
                       <option key={l.id} value={l.id}>
-                        {l.name} ({l.phone || 'Coursier'})
+                        {l.name} ({l.phone || 'Livreur'})
                       </option>
                     ))}
                   </select>

@@ -275,7 +275,7 @@ export const Purchases: React.FC = () => {
                           <div className="text-[11px] text-slate-600 font-semibold flex items-center justify-center gap-1">
                             <UserCheck className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
                             <span>
-                              Par : <strong className="text-slate-900 font-bold">{receiverName || 'Administrateur'}</strong>
+                              Par : <strong className="text-slate-900 font-bold">{receiverName || 'Magasinier'}</strong>
                             </span>
                           </div>
                           {p.received_at && (

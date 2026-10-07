@@ -270,7 +270,7 @@ export const CashRegisters: React.FC = () => {
     }
   };
 
-  // Activation / Désactivation d'un poste de caisse ayant déjà un historique de ventes
+  // Activation / Désactivation d'un poste de caisse
   const handleToggleActiveRegister = async (reg: CashRegister) => {
     if (!reg.id) return;
     const newStatus = reg.is_active === false;
@@ -280,7 +280,7 @@ export const CashRegisters: React.FC = () => {
       title: `${actionText} ${reg.name} ?`,
       text: newStatus
         ? 'Ce poste de caisse sera à nouveau disponible pour les encaissements au TPV.'
-        : 'Ce poste de caisse sera désactivé pour les nouveaux encaissements tout en conservant l’historique des ventes.',
+        : 'Ce poste de caisse sera désactivé pour les nouveaux encaissements tout en conservant l’historique des données.',
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: `Oui, ${actionText.toLowerCase()}`,
@@ -289,6 +289,17 @@ export const CashRegisters: React.FC = () => {
     });
 
     if (confirm.isConfirmed) {
+      try {
+        const { API_BASE_URL } = await import('../db/syncService');
+        await fetch(`${API_BASE_URL}/sync/cash-registers/${reg.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_active: newStatus })
+        }).catch(() => null);
+      } catch (e) {
+        console.warn('Erreur mise à jour statut caisse API:', e);
+      }
+
       await db.cash_registers.update(reg.id, {
         is_active: newStatus,
         synced: 0
@@ -437,22 +448,22 @@ export const CashRegisters: React.FC = () => {
                   <span className="group-hover:translate-x-1 transition-transform">→</span>
                 </button>
 
-                {/* Bouton conditionnel selon que la caisse a déjà des ventes ou non */}
+                {/* Boutons d'action (Activer/Désactiver et Supprimer si aucune vente) */}
                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                  {cardData.hasSales ? (
-                    <button
-                      type="button"
-                      onClick={() => handleToggleActiveRegister(reg)}
-                      className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition active:scale-95 flex items-center gap-1 ${
-                        isDeactivated
-                          ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
-                          : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200'
-                      }`}
-                      title={isDeactivated ? 'Réactiver ce poste de caisse' : 'Désactiver ce poste de caisse'}
-                    >
-                      <span>{isDeactivated ? '⚡ Activer' : 'Désactiver'}</span>
-                    </button>
-                  ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleActiveRegister(reg)}
+                    className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition active:scale-95 flex items-center gap-1 ${
+                      isDeactivated
+                        ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                        : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200'
+                    }`}
+                    title={isDeactivated ? 'Réactiver ce poste de caisse' : 'Désactiver ce poste de caisse'}
+                  >
+                    <span>{isDeactivated ? '⚡ Activer' : 'Désactiver'}</span>
+                  </button>
+
+                  {!cardData.hasSales && (
                     <button
                       type="button"
                       onClick={() => handleDeleteRegister(reg)}

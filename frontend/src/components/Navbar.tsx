@@ -148,8 +148,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar }) => {
             onClick={() => setDropdownOpen(!dropdownOpen)}
             className="flex items-center gap-2.5 py-1 px-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 transition text-white shadow-sm"
           >
-            <div className="w-8 h-8 rounded-xl bg-white text-[#0055b8] flex items-center justify-center font-black text-xs shadow-sm flex-shrink-0">
-              {user?.name?.charAt(0).toUpperCase() || 'U'}
+            <div className="w-8 h-8 rounded-xl bg-white text-[#0055b8] flex items-center justify-center font-black text-xs shadow-sm flex-shrink-0 overflow-hidden border border-white/40">
+              {user?.avatar ? (
+                <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+              ) : (
+                user?.name?.charAt(0).toUpperCase() || 'U'
+              )}
             </div>
             <div className="text-left hidden sm:block">
               <span className="block text-xs font-bold leading-tight truncate max-w-[150px]">
@@ -168,10 +172,19 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar }) => {
               className="absolute right-0 mt-2 w-60 bg-white text-slate-800 rounded-2xl shadow-2xl border border-slate-200/90 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden"
               onMouseLeave={() => setDropdownOpen(false)}
             >
-              <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Connecté en tant que</p>
-                <p className="text-xs font-bold text-slate-900 truncate">{user?.name}</p>
-                <p className="text-[11px] text-slate-500 truncate">{user?.email || user?.phone}</p>
+              <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#0055b8] text-white flex items-center justify-center font-black text-xs flex-shrink-0 overflow-hidden shadow-xs border border-blue-200">
+                  {user?.avatar ? (
+                    <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                  ) : (
+                    user?.name?.charAt(0).toUpperCase() || 'U'
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Connecté en tant que</p>
+                  <p className="text-xs font-bold text-slate-900 truncate">{user?.name}</p>
+                  <p className="text-[11px] text-slate-500 truncate">{user?.email || user?.phone}</p>
+                </div>
               </div>
 
               <div className="p-1 space-y-0.5">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../db/db';
@@ -15,13 +15,17 @@ import {
   Save,
   Eye,
   EyeOff,
-  CheckCircle2
+  CheckCircle2,
+  Camera,
+  Trash2,
+  Upload
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 export const Profile: React.FC = () => {
   const navigate = useNavigate();
   const { user, updateUser } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Décomposition du nom en nom et prénoms
   const initialNameParts = (user?.name || '').trim().split(' ');
@@ -33,6 +37,7 @@ export const Profile: React.FC = () => {
   const [email, setEmail] = useState(user?.email || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [address, setAddress] = useState((user as any)?.address || 'Plateau, Abidjan');
+  const [avatar, setAvatar] = useState(user?.avatar || '');
 
   // Champs de sécurité / mot de passe
   const [currentPassword, setCurrentPassword] = useState('');
@@ -53,6 +58,7 @@ export const Profile: React.FC = () => {
       setFirstName(parts.slice(1).join(' ') || '');
       setEmail(user.email || '');
       setPhone(user.phone || '');
+      setAvatar(user.avatar || '');
       if ((user as any).address) setAddress((user as any).address);
     }
   }, [user]);
@@ -61,7 +67,61 @@ export const Profile: React.FC = () => {
   const getInitials = () => {
     const fn = firstName ? firstName.charAt(0).toUpperCase() : '';
     const ln = lastName ? lastName.charAt(0).toUpperCase() : '';
-    return fn && ln ? `${fn}${ln}` : (user?.name?.slice(0, 2).toUpperCase() || 'AD');
+    return fn && ln ? `${fn}${ln}` : (user?.name?.slice(0, 2).toUpperCase() || 'U');
+  };
+
+  // Téléversement et compression de la photo de profil
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      Swal.fire('Fichier trop volumineux', 'Veuillez sélectionner une image de moins de 5 Mo.', 'warning');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_DIM = 400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_DIM) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          }
+        } else {
+          if (height > MAX_DIM) {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setAvatar(compressedDataUrl);
+        } else {
+          setAvatar(event.target?.result as string);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveAvatar = () => {
+    setAvatar('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -72,14 +132,14 @@ export const Profile: React.FC = () => {
       return;
     }
 
-    if (!email.trim()) {
+    if (!email.trim() && user?.role === 'admin') {
       Swal.fire('Champ requis', 'Veuillez renseigner votre adresse e-mail.', 'warning');
       return;
     }
 
     if (newPassword) {
-      if (newPassword.length < 6) {
-        Swal.fire('Mot de passe court', 'Le nouveau mot de passe doit comporter au moins 6 caractères.', 'warning');
+      if (newPassword.length < 4) {
+        Swal.fire('Mot de passe court', 'Le nouveau mot de passe doit comporter au moins 4 caractères.', 'warning');
         return;
       }
       if (newPassword !== confirmPassword) {
@@ -94,9 +154,10 @@ export const Profile: React.FC = () => {
 
       const payload: any = {
         name: fullName,
-        email: email.trim(),
+        email: email.trim() || `${phone.trim() || 'user'}@gestmag.local`,
         phone: phone.trim(),
-        address: address.trim()
+        address: address.trim(),
+        avatar: avatar || undefined
       };
 
       if (newPassword) {
@@ -105,10 +166,16 @@ export const Profile: React.FC = () => {
 
       await updateUser(payload);
 
+      // Tenter la synchronisation en arrière-plan vers MySQL si disponible
+      try {
+        const { syncService } = await import('../db/syncService');
+        syncService.pushToRemote().catch(() => {});
+      } catch {}
+
       await Swal.fire({
         icon: 'success',
-        title: 'Profil Administrateur Actualisé !',
-        text: 'Vos coordonnées et vos paramètres de sécurité ont été mis à jour avec succès.',
+        title: 'Profil Actualisé !',
+        text: 'Votre photo, vos coordonnées et vos paramètres ont été mis à jour avec succès.',
         timer: 2000,
         showConfirmButton: false
       });
@@ -126,18 +193,44 @@ export const Profile: React.FC = () => {
   return (
     <div className="w-full space-y-6 animate-in fade-in duration-150 pb-16">
       
-      {/* 1. BANDEAU SUPÉRIEUR : IDENTITÉ DE L'ADMINISTRATEUR */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          {/* Avatar avec initiales */}
-          <div className="w-14 h-14 rounded-2xl bg-[#0055b8] text-white flex items-center justify-center font-black text-xl flex-shrink-0 shadow-md shadow-blue-500/20 tracking-wider">
-            {getInitials()}
+      {/* 1. BANDEAU SUPÉRIEUR : IDENTITÉ & PHOTO DE PROFIL */}
+      <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+        <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+          
+          {/* Avatar avec badge de modification photo */}
+          <div className="relative group">
+            <div className="w-20 h-20 rounded-3xl bg-[#0055b8] text-white flex items-center justify-center font-black text-2xl flex-shrink-0 shadow-lg shadow-blue-500/20 tracking-wider overflow-hidden border-2 border-white ring-2 ring-blue-100">
+              {avatar ? (
+                <img src={avatar} alt="Photo de profil" className="w-full h-full object-cover" />
+              ) : (
+                getInitials()
+              )}
+            </div>
+
+            {/* Bouton déclencheur caméra */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute -bottom-1 -right-1 p-2 rounded-2xl bg-[#0055b8] hover:bg-blue-700 text-white shadow-md border-2 border-white transition active:scale-95 flex items-center justify-center"
+              title="Changer ma photo de profil"
+            >
+              <Camera className="w-3.5 h-3.5 stroke-[2.5]" />
+            </button>
+
+            {/* Input file caché */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
           </div>
 
           <div className="space-y-1">
-            <div className="flex items-center gap-2.5">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-50 text-[#7c3aed] uppercase tracking-wider border border-purple-100">
-                {user?.role ? user.role.toUpperCase() : 'ADMIN'}
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-[#0055b8] uppercase tracking-wider border border-blue-100">
+                {user?.role ? user.role.toUpperCase() : 'UTILISATEUR'}
               </span>
               <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -149,8 +242,30 @@ export const Profile: React.FC = () => {
               {lastName} {firstName}
             </h1>
             <p className="text-xs text-slate-400 font-medium">
-              {email}
+              {email || phone || 'Identifiant actif'}
             </p>
+
+            {/* Boutons d'actions rapides photo */}
+            <div className="flex items-center justify-center sm:justify-start gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#0055b8] text-[11px] font-bold transition active:scale-95"
+              >
+                <Upload className="w-3 h-3" />
+                <span>{avatar ? 'Changer de photo' : 'Ajouter une photo'}</span>
+              </button>
+              {avatar && (
+                <button
+                  type="button"
+                  onClick={handleRemoveAvatar}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold transition active:scale-95"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Retirer</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -159,7 +274,7 @@ export const Profile: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/settings')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs shadow-xs transition active:scale-95 self-start sm:self-auto flex-shrink-0"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs shadow-xs transition active:scale-95 self-center sm:self-auto flex-shrink-0"
           >
             <SlidersHorizontal className="w-4 h-4 text-slate-500" />
             <span>Paramètres Magasin</span>

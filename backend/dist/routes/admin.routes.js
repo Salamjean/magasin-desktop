@@ -11,7 +11,7 @@ import { getAllPurchases, createPurchase, receivePurchase } from '../controllers
 import { getAllExpenses, createExpense, deleteExpense } from '../controllers/admin/expenses.controller.js';
 import { getAllInventories, getInventoryById, validateInventory } from '../controllers/admin/inventory.controller.js';
 import { getAllDeliveries, createDelivery, validateDeliveryOtp } from '../controllers/admin/deliveries.controller.js';
-import { getAllCashRegisters, createCashRegister, updateCashRegister } from '../controllers/admin/cashRegisters.controller.js';
+import { getAllCashRegisters, createCashRegister, updateCashRegister, deleteCashRegister } from '../controllers/admin/cashRegisters.controller.js';
 import { getAllUsers, createUser, updateUser, deleteUser } from '../controllers/admin/users.controller.js';
 import { getSettings, updateSettings } from '../controllers/admin/settings.controller.js';
 const router = Router();
@@ -68,6 +68,7 @@ router.post('/deliveries/:id/validate-otp', validateDeliveryOtp);
 router.get('/cash-registers', getAllCashRegisters);
 router.post('/cash-registers', createCashRegister);
 router.put('/cash-registers/:id', updateCashRegister);
+router.delete('/cash-registers/:id', deleteCashRegister);
 // Users
 router.get('/users', getAllUsers);
 router.post('/users', createUser);

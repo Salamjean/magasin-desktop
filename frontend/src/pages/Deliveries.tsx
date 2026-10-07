@@ -28,6 +28,7 @@ export const Deliveries: React.FC = () => {
 
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [livreurs, setLivreurs] = useState<User[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -43,11 +44,19 @@ export const Deliveries: React.FC = () => {
     setLoading(true);
     try {
       const list = await db.deliveries.reverse().toArray();
-      const livs = await db.users.where('role').equals('livreur').toArray();
-      const allUsers = await db.users.toArray();
+      const users = await db.users.toArray();
+      const livs = users.filter(
+        (u) =>
+          u.role === 'livreur' &&
+          u.active !== false &&
+          (u.active as any) !== 0 &&
+          (u.active as any) !== '0' &&
+          (u.active as any) !== 'false'
+      );
 
       setDeliveries(list);
-      setLivreurs(livs.length > 0 ? livs : allUsers);
+      setAllUsers(users);
+      setLivreurs(livs);
     } catch (err) {
       console.error(err);
     } finally {
@@ -58,6 +67,16 @@ export const Deliveries: React.FC = () => {
   // Suppression d'un ordre de livraison
   const handleDeleteDelivery = async (delivery: Delivery) => {
     if (!delivery.id) return;
+
+    if (delivery.status === 'delivered') {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Suppression impossible',
+        text: 'Cette livraison a déjà été finalisée et marquée comme LIVRÉE. Elle ne peut plus être supprimée afin de garantir la traçabilité comptable et logistique.',
+        confirmButtonColor: '#0055b8'
+      });
+      return;
+    }
 
     const confirm = await Swal.fire({
       title: 'Supprimer cet ordre de livraison ?',
@@ -111,14 +130,14 @@ export const Deliveries: React.FC = () => {
   // Filtrage des livraisons
   const filteredDeliveries = deliveries.filter((d) => {
     if (user?.role === 'livreur') {
-      const matchUser = !d.livreur_id || d.livreur_id === user.id || user?.role === 'livreur';
+      const matchUser = Number(d.livreur_id) === Number(user?.id);
       if (!matchUser) return false;
       if (statusFilter !== 'all') {
         return d.status === statusFilter;
       }
       return true;
     }
-    const liv = livreurs.find((l) => l.id === d.livreur_id);
+    const liv = allUsers.find((l) => Number(l.id) === Number(d.livreur_id)) || livreurs.find((l) => Number(l.id) === Number(d.livreur_id));
     const q = searchQuery.toLowerCase().trim();
     return (
       d.customer_name.toLowerCase().includes(q) ||
@@ -514,7 +533,7 @@ export const Deliveries: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
               {filteredDeliveries.map((d) => {
-                const liv = livreurs.find((l) => l.id === d.livreur_id);
+                const liv = allUsers.find((l) => Number(l.id) === Number(d.livreur_id)) || livreurs.find((l) => Number(l.id) === Number(d.livreur_id));
                 const isDelivered = d.status === 'delivered';
                 const isPending = d.status === 'pending';
                 const isInTransit = d.status === 'in_transit';
@@ -606,14 +625,16 @@ export const Deliveries: React.FC = () => {
                           <span>Détails</span>
                         </button>
 
-                        {/* Bouton Supprimer */}
-                        <button
-                          onClick={() => handleDeleteDelivery(d)}
-                          className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-xl transition shadow-xs font-bold active:scale-95"
-                          title="Supprimer cette livraison"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {/* Bouton Supprimer (Masqué si la livraison est déjà effectuée/livrée) */}
+                        {d.status !== 'delivered' && (
+                          <button
+                            onClick={() => handleDeleteDelivery(d)}
+                            className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-xl transition shadow-xs font-bold active:scale-95"
+                            title="Supprimer cette livraison"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

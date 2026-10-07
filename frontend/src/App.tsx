@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { SyncProvider } from './context/SyncContext';
 import { CartProvider } from './context/CartContext';
 import { SettingsProvider } from './context/SettingsContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const AppRouter: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const isElectronFile = typeof window !== 'undefined' && window.location.protocol === 'file:';
@@ -103,119 +104,121 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 export const App: React.FC = () => {
   return (
-    <AppRouter>
-      <AuthProvider>
-        <SettingsProvider>
-          <SyncProvider>
-            <CartProvider>
-              <Routes>
-                {/* Public Routes */}
-                <Route path="/splash" element={<SplashView />} />
-                <Route path="/login" element={<Login />} />
+    <ErrorBoundary>
+      <AppRouter>
+        <AuthProvider>
+          <SettingsProvider>
+            <SyncProvider>
+              <CartProvider>
+                <Routes>
+                  {/* Public Routes */}
+                  <Route path="/splash" element={<SplashView />} />
+                  <Route path="/login" element={<Login />} />
 
-                {/* Protected Routes Inside App Layout */}
-                <Route
-                  path="/"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout />
-                    </ProtectedRoute>
-                  }
-                >
-                  <Route index element={<AdminDashboard />} />
-                  
-                  {/* Admin Modules */}
-                  <Route path="products" element={<AdminProducts />} />
-                  <Route path="products/new" element={<ProductCreate />} />
-                  <Route path="products/add" element={<ProductCreate />} />
-                  <Route path="products/edit/:id" element={<ProductEdit />} />
-                  <Route path="products/view/:id" element={<ProductDetail />} />
-                  <Route path="products/:id" element={<ProductDetail />} />
-                  <Route path="categories" element={<AdminCategories />} />
-                  <Route path="categories/new" element={<CategoryCreate />} />
-                  <Route path="categories/add" element={<CategoryCreate />} />
-                  <Route path="categories/edit/:id" element={<CategoryEdit />} />
-                  <Route path="categories/view/:id" element={<CategoryDetail />} />
-                  <Route path="categories/:id" element={<CategoryDetail />} />
-                  <Route path="stock" element={<AdminStock />} />
-                  <Route path="stock/in" element={<StockEntry />} />
-                  <Route path="stock/entry" element={<StockEntry />} />
-                  <Route path="stock/out" element={<StockExit />} />
-                  <Route path="stock/exit" element={<StockExit />} />
-                  <Route path="suppliers" element={<AdminSuppliers />} />
-                  <Route path="suppliers/new" element={<SupplierCreate />} />
-                  <Route path="suppliers/add" element={<SupplierCreate />} />
-                  <Route path="suppliers/edit/:id" element={<SupplierEdit />} />
-                  <Route path="suppliers/view/:id" element={<SupplierDetail />} />
-                  <Route path="suppliers/:id" element={<SupplierDetail />} />
-                  <Route path="customers" element={<AdminCustomers />} />
-                  <Route path="customers/new" element={<CustomerCreate />} />
-                  <Route path="customers/add" element={<CustomerCreate />} />
-                  <Route path="customers/edit/:id" element={<CustomerEdit />} />
-                  <Route path="customers/view/:id" element={<CustomerDetail />} />
-                  <Route path="customers/settle/:id" element={<CustomerDetail />} />
-                  <Route path="customers/:id" element={<CustomerDetail />} />
-                  <Route path="sales" element={<AdminSales />} />
-                  <Route path="purchases" element={<AdminPurchases />} />
-                  <Route path="purchases/new" element={<PurchaseCreate />} />
-                  <Route path="purchases/add" element={<PurchaseCreate />} />
-                  <Route path="purchases/create" element={<PurchaseCreate />} />
-                  <Route path="purchases/receive/:id" element={<PurchaseReception />} />
-                  <Route path="purchases/reception/:id" element={<PurchaseReception />} />
-                  <Route path="purchases/view/:id" element={<PurchaseReception />} />
-                  <Route path="purchases/:id" element={<PurchaseReception />} />
-                  <Route path="expenses" element={<AdminExpenses />} />
-                  <Route path="inventories" element={<AdminInventory />} />
-                  <Route path="inventories/new" element={<InventoryCreate />} />
-                  <Route path="inventories/add" element={<InventoryCreate />} />
-                  <Route path="inventories/view/:id" element={<InventoryDetail />} />
-                  <Route path="inventories/:id" element={<InventoryDetail />} />
-                  <Route path="deliveries" element={<AdminDeliveries />} />
-                  <Route path="deliveries/new" element={<DeliveryCreate />} />
-                  <Route path="deliveries/add" element={<DeliveryCreate />} />
-                  <Route path="deliveries/create" element={<DeliveryCreate />} />
-                  <Route path="deliveries/view/:id" element={<DeliveryDetail />} />
-                  <Route path="deliveries/:id" element={<DeliveryDetail />} />
-                  <Route path="cash-registers" element={<AdminCashRegisters />} />
-                  <Route path="cash-registers/new" element={<CashRegisterCreate />} />
-                  <Route path="cash-registers/add" element={<CashRegisterCreate />} />
-                  <Route path="cash-registers/edit/:id" element={<CashRegisterEdit />} />
-                  <Route path="cash-registers/sessions/:id" element={<CashRegisterSessions />} />
-                  <Route path="cash-registers/sessions/:registerId/bilan-z/:id" element={<CashSessionBilanZ />} />
-                  <Route path="cash-registers/bilan-z/:id" element={<CashSessionBilanZ />} />
-                  <Route path="cash-registers/bilan/:id" element={<CashSessionBilanZ />} />
-                  <Route path="cash-registers/view/:id" element={<CashRegisterSessions />} />
-                  <Route path="cash-registers/:id" element={<CashRegisterSessions />} />
-                  <Route path="users" element={<AdminUsers />} />
-                  <Route path="users/new" element={<UserCreate />} />
-                  <Route path="users/add" element={<UserCreate />} />
-                  <Route path="users/edit/:id" element={<UserEdit />} />
-                  <Route path="settings" element={<AdminSettings />} />
-                  <Route path="sync" element={<AdminSync />} />
-                  <Route path="reports" element={<AdminReports />} />
+                  {/* Protected Routes Inside App Layout */}
+                  <Route
+                    path="/"
+                    element={
+                      <ProtectedRoute>
+                        <AppLayout />
+                      </ProtectedRoute>
+                    }
+                  >
+                    <Route index element={<AdminDashboard />} />
+                    
+                    {/* Admin Modules */}
+                    <Route path="products" element={<AdminProducts />} />
+                    <Route path="products/new" element={<ProductCreate />} />
+                    <Route path="products/add" element={<ProductCreate />} />
+                    <Route path="products/edit/:id" element={<ProductEdit />} />
+                    <Route path="products/view/:id" element={<ProductDetail />} />
+                    <Route path="products/:id" element={<ProductDetail />} />
+                    <Route path="categories" element={<AdminCategories />} />
+                    <Route path="categories/new" element={<CategoryCreate />} />
+                    <Route path="categories/add" element={<CategoryCreate />} />
+                    <Route path="categories/edit/:id" element={<CategoryEdit />} />
+                    <Route path="categories/view/:id" element={<CategoryDetail />} />
+                    <Route path="categories/:id" element={<CategoryDetail />} />
+                    <Route path="stock" element={<AdminStock />} />
+                    <Route path="stock/in" element={<StockEntry />} />
+                    <Route path="stock/entry" element={<StockEntry />} />
+                    <Route path="stock/out" element={<StockExit />} />
+                    <Route path="stock/exit" element={<StockExit />} />
+                    <Route path="suppliers" element={<AdminSuppliers />} />
+                    <Route path="suppliers/new" element={<SupplierCreate />} />
+                    <Route path="suppliers/add" element={<SupplierCreate />} />
+                    <Route path="suppliers/edit/:id" element={<SupplierEdit />} />
+                    <Route path="suppliers/view/:id" element={<SupplierDetail />} />
+                    <Route path="suppliers/:id" element={<SupplierDetail />} />
+                    <Route path="customers" element={<AdminCustomers />} />
+                    <Route path="customers/new" element={<CustomerCreate />} />
+                    <Route path="customers/add" element={<CustomerCreate />} />
+                    <Route path="customers/edit/:id" element={<CustomerEdit />} />
+                    <Route path="customers/view/:id" element={<CustomerDetail />} />
+                    <Route path="customers/settle/:id" element={<CustomerDetail />} />
+                    <Route path="customers/:id" element={<CustomerDetail />} />
+                    <Route path="sales" element={<AdminSales />} />
+                    <Route path="purchases" element={<AdminPurchases />} />
+                    <Route path="purchases/new" element={<PurchaseCreate />} />
+                    <Route path="purchases/add" element={<PurchaseCreate />} />
+                    <Route path="purchases/create" element={<PurchaseCreate />} />
+                    <Route path="purchases/receive/:id" element={<PurchaseReception />} />
+                    <Route path="purchases/reception/:id" element={<PurchaseReception />} />
+                    <Route path="purchases/view/:id" element={<PurchaseReception />} />
+                    <Route path="purchases/:id" element={<PurchaseReception />} />
+                    <Route path="expenses" element={<AdminExpenses />} />
+                    <Route path="inventories" element={<AdminInventory />} />
+                    <Route path="inventories/new" element={<InventoryCreate />} />
+                    <Route path="inventories/add" element={<InventoryCreate />} />
+                    <Route path="inventories/view/:id" element={<InventoryDetail />} />
+                    <Route path="inventories/:id" element={<InventoryDetail />} />
+                    <Route path="deliveries" element={<AdminDeliveries />} />
+                    <Route path="deliveries/new" element={<DeliveryCreate />} />
+                    <Route path="deliveries/add" element={<DeliveryCreate />} />
+                    <Route path="deliveries/create" element={<DeliveryCreate />} />
+                    <Route path="deliveries/view/:id" element={<DeliveryDetail />} />
+                    <Route path="deliveries/:id" element={<DeliveryDetail />} />
+                    <Route path="cash-registers" element={<AdminCashRegisters />} />
+                    <Route path="cash-registers/new" element={<CashRegisterCreate />} />
+                    <Route path="cash-registers/add" element={<CashRegisterCreate />} />
+                    <Route path="cash-registers/edit/:id" element={<CashRegisterEdit />} />
+                    <Route path="cash-registers/sessions/:id" element={<CashRegisterSessions />} />
+                    <Route path="cash-registers/sessions/:registerId/bilan-z/:id" element={<CashSessionBilanZ />} />
+                    <Route path="cash-registers/bilan-z/:id" element={<CashSessionBilanZ />} />
+                    <Route path="cash-registers/bilan/:id" element={<CashSessionBilanZ />} />
+                    <Route path="cash-registers/view/:id" element={<CashRegisterSessions />} />
+                    <Route path="cash-registers/:id" element={<CashRegisterSessions />} />
+                    <Route path="users" element={<AdminUsers />} />
+                    <Route path="users/new" element={<UserCreate />} />
+                    <Route path="users/add" element={<UserCreate />} />
+                    <Route path="users/edit/:id" element={<UserEdit />} />
+                    <Route path="settings" element={<AdminSettings />} />
+                    <Route path="sync" element={<AdminSync />} />
+                    <Route path="reports" element={<AdminReports />} />
 
-                  {/* Caissier & Common Modules */}
-                  <Route path="labels" element={<BarcodeLabels />} />
-                  <Route path="pos" element={<CaissierPos />} />
-                  <Route path="cash-session" element={<CaissierSession />} />
-                  <Route path="cashier-sales" element={<CaissierSales />} />
-                  <Route path="returns" element={<CaissierReturns />} />
+                    {/* Caissier & Common Modules */}
+                    <Route path="labels" element={<BarcodeLabels />} />
+                    <Route path="pos" element={<CaissierPos />} />
+                    <Route path="cash-session" element={<CaissierSession />} />
+                    <Route path="cashier-sales" element={<CaissierSales />} />
+                    <Route path="returns" element={<CaissierReturns />} />
 
-                  {/* Magasinier & Livreur Modules */}
-                  <Route path="alerts" element={<MagasinierAlerts />} />
-                  <Route path="delivery-history" element={<AdminDeliveries />} />
+                    {/* Magasinier & Livreur Modules */}
+                    <Route path="alerts" element={<MagasinierAlerts />} />
+                    <Route path="delivery-history" element={<AdminDeliveries />} />
 
-                  {/* User Profile */}
-                  <Route path="profile" element={<Profile />} />
-                </Route>
+                    {/* User Profile */}
+                    <Route path="profile" element={<Profile />} />
+                  </Route>
 
-                {/* Catch-all fallback */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </CartProvider>
-          </SyncProvider>
-        </SettingsProvider>
-      </AuthProvider>
-    </AppRouter>
+                  {/* Catch-all fallback */}
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </CartProvider>
+            </SyncProvider>
+          </SettingsProvider>
+        </AuthProvider>
+      </AppRouter>
+    </ErrorBoundary>
   );
 };

@@ -10,9 +10,10 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "desktop": "electron .",
+    "desktop": "vite build && electron .",
     "electron:dev": "vite",
-    "electron:build": "tsc && vite build && electron-builder"
+    "electron:build": "tsc && vite build && electron-builder",
+    "electron:build:custom": "node scripts/build-custom-exe.js"
   },
   "build": {
     "appId": "com.gestmagasin.pro",

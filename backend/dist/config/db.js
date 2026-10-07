@@ -21,6 +21,17 @@ export async function testConnection() {
     try {
         const conn = await pool.getConnection();
         await conn.ping();
+        // Migration automatique pour garantir que les images ne sont jamais tronquées par MySQL
+        try {
+            await conn.query("ALTER TABLE products MODIFY COLUMN image LONGTEXT NULL");
+            await conn.query("ALTER TABLE users MODIFY COLUMN avatar LONGTEXT NULL");
+            await conn.query("ALTER TABLE settings MODIFY COLUMN value LONGTEXT NOT NULL");
+            await conn.query("ALTER TABLE sales MODIFY COLUMN payment_status VARCHAR(50) NOT NULL DEFAULT 'paid'");
+            await conn.query("ALTER TABLE sales MODIFY COLUMN payment_method VARCHAR(50) NOT NULL DEFAULT 'cash'");
+        }
+        catch (migErr) {
+            // Ignorer si la table n'existe pas encore
+        }
         conn.release();
         console.log(`✅ Base de données MySQL connectée avec succès (${dbHost}:${dbPort}/${dbName})`);
         return true;

@@ -119,6 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, mobileOpen, setMobi
       items: [
         { label: 'Point de vente (TPV)', path: '/pos', icon: ShoppingCart, highlight: true },
         { label: 'Gestion de caisse', path: '/cash-registers', icon: DollarSign },
+        { label: 'Clients & Crédits', path: '/customers', icon: Users },
         { label: 'Mes ventes', path: '/cashier-sales', icon: Receipt },
         { label: 'Retours / annulations', path: '/returns', icon: RefreshCw },
         { label: 'Livraisons', path: '/deliveries', icon: Truck },

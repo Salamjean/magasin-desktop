@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { db, Customer, Sale, SaleItem, Product } from '../db/db';
+import { db, Customer, Sale, SaleItem, Product, CashMovement } from '../db/db';
 import { useAuth } from '../context/AuthContext';
 import {
   Users,
@@ -21,7 +21,13 @@ import {
   Banknote,
   DollarSign,
   Receipt,
-  UserCheck
+  UserCheck,
+  Lock,
+  History,
+  Trash2,
+  ShieldCheck,
+  ArrowDownCircle,
+  ArrowUpCircle
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -34,9 +40,11 @@ export const CustomerDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [sales, setSales] = useState<SaleWithDetails[]>([]);
+  const [debtMovements, setDebtMovements] = useState<CashMovement[]>([]);
   const [loading, setLoading] = useState(true);
 
   // État du formulaire de règlement / crédit
@@ -88,7 +96,7 @@ export const CustomerDetail: React.FC = () => {
       current_debt: c.current_debt || 0
     });
 
-    // Charger l'historique des achats de ce client
+    // 1. Charger l'historique des achats de ce client
     const allSales = await db.sales.toArray();
     const customerSales = allSales
       .filter((s) => s.customer_id === custId)
@@ -117,6 +125,20 @@ export const CustomerDetail: React.FC = () => {
     });
 
     setSales(salesWithItems);
+
+    // 2. Charger l'historique des règlements & encaissements de ce client
+    const allMovements = await db.cash_movements.toArray();
+    const clientMoves = allMovements
+      .filter(
+        (m) =>
+          m.reason &&
+          (m.reason.includes(c.name) ||
+            m.reason.includes(`[${c.name}]`) ||
+            m.reason.toLowerCase().includes(c.name.toLowerCase()))
+      )
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    setDebtMovements(clientMoves);
     setLoading(false);
   };
 
@@ -146,6 +168,7 @@ export const CustomerDetail: React.FC = () => {
 
     const isSettle = opType === 'settle';
     const actionLabel = isSettle ? 'Règlement de dette' : 'Ajout de crédit / dette';
+    const collectorName = user?.name ? `${user.name} (${user.role === 'admin' ? 'Administrateur' : 'Caissier'})` : 'Caisse Principale';
 
     const confirm = await Swal.fire({
       title: `${actionLabel} ?`,
@@ -153,6 +176,7 @@ export const CustomerDetail: React.FC = () => {
         <div class="text-left text-xs space-y-2 text-slate-600">
           <p><strong>Client :</strong> ${customer.name}</p>
           <p><strong>Montant opération :</strong> <span class="text-blue-600 font-bold">${amount.toLocaleString('fr-FR')} FCFA</span></p>
+          <p><strong>Opérateur / Récupéré par :</strong> <span class="text-emerald-700 font-bold">${collectorName}</span></p>
           <p><strong>Dette avant :</strong> ${currentDebt.toLocaleString('fr-FR')} FCFA</p>
           <p><strong>Nouveau solde dette :</strong> <span class="font-black ${newDebt > 0 ? 'text-rose-600' : 'text-emerald-600'}">${newDebt.toLocaleString('fr-FR')} FCFA</span></p>
           ${opNote ? `<p><strong>Motif :</strong> ${opNote}</p>` : ''}
@@ -169,16 +193,38 @@ export const CustomerDetail: React.FC = () => {
 
     setProcessing(true);
     try {
+      // Mise à jour de la dette client
       await db.customers.update(customer.id, {
         current_debt: newDebt,
+        synced: 0
+      });
+
+      // Enregistrement du mouvement de caisse avec traçabilité de qui a récupéré le montant
+      const activeSession = await db.cash_sessions.where('status').equals('open').first();
+      const movementReason = isSettle
+        ? `Règlement dette client [${customer.name}] (Encaissé par ${collectorName})${opNote ? ` — Note: ${opNote}` : ''}`
+        : `Ajout dette/crédit client [${customer.name}] (Effectué par ${collectorName})${opNote ? ` — Note: ${opNote}` : ''}`;
+
+      await db.cash_movements.add({
+        cash_session_id: activeSession?.id || 1,
+        type: isSettle ? 'deposit' : 'withdrawal',
+        amount: amount,
+        reason: movementReason,
+        created_at: new Date().toISOString(),
         synced: 0
       });
 
       await Swal.fire({
         icon: 'success',
         title: 'Opération enregistrée !',
-        text: `Le solde de dette a été actualisé à ${newDebt.toLocaleString('fr-FR')} FCFA.`,
-        timer: 2000,
+        html: `
+          <div class="text-xs text-left space-y-1">
+            <p><strong>Montant :</strong> ${amount.toLocaleString('fr-FR')} FCFA</p>
+            <p><strong>Encaissé / Récupéré par :</strong> <span class="text-blue-600 font-bold">${collectorName}</span></p>
+            <p><strong>Nouveau solde dette :</strong> ${newDebt.toLocaleString('fr-FR')} FCFA</p>
+          </div>
+        `,
+        timer: 2500,
         showConfirmButton: false
       });
 
@@ -192,7 +238,37 @@ export const CustomerDetail: React.FC = () => {
     }
   };
 
-  // 2. Sauvegarde de la modification des informations client
+  // 2. Suppression d'une ligne de règlement / dette (Réservée exclusivement à l'Admin)
+  const handleDeleteMovement = async (m: CashMovement) => {
+    if (!isAdmin) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Action non autorisée',
+        text: 'Seul un administrateur peut supprimer une ligne de dette ou un règlement.'
+      });
+      return;
+    }
+
+    if (!m.id) return;
+
+    const confirm = await Swal.fire({
+      title: 'Supprimer cette ligne ?',
+      text: 'Cette action supprimera l\'enregistrement de règlement de l\'historique.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Oui, supprimer',
+      cancelButtonText: 'Annuler',
+      confirmButtonColor: '#e11d48'
+    });
+
+    if (confirm.isConfirmed) {
+      await db.cash_movements.delete(m.id);
+      loadCustomerData();
+      Swal.fire({ icon: 'success', title: 'Ligne supprimée.', timer: 1500, showConfirmButton: false });
+    }
+  };
+
+  // 3. Sauvegarde de la modification des informations client
   const handleSaveCustomerInfo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customer?.id) return;
@@ -205,12 +281,15 @@ export const CustomerDetail: React.FC = () => {
     }
 
     try {
+      // Seul l'administrateur peut modifier la dette manuellement
+      const finalDebt = isAdmin ? (Number(editFormData.current_debt) || 0) : (customer.current_debt || 0);
+
       await db.customers.update(customer.id, {
         name: fullName,
         phone: editFormData.phone.trim() || undefined,
         email: editFormData.email.trim() || undefined,
         address: editFormData.address.trim() || undefined,
-        current_debt: Number(editFormData.current_debt) || 0,
+        current_debt: finalDebt,
         synced: 0
       });
 
@@ -256,7 +335,7 @@ export const CustomerDetail: React.FC = () => {
                   : 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
               }`}
             >
-              {hasDebt ? `Dette : ${currentDebt.toLocaleString('fr-FR')} FCFA` : 'Compte Soldé (0 FCFA)'}
+              {hasDebt ? `Dette actuelle : ${currentDebt.toLocaleString('fr-FR')} FCFA` : 'Compte Soldé (0 FCFA)'}
             </span>
           </div>
 
@@ -308,55 +387,198 @@ export const CustomerDetail: React.FC = () => {
 
       {/* 2. CARTE RÈGLEMENT DE DETTE / CRÉDIT CLIENT */}
       <div className="bg-blue-50/40 rounded-3xl border border-blue-100/90 p-5 sm:p-6 shadow-subtle space-y-4">
-        <div className="flex items-center gap-2.5 text-[#0055b8]">
-          <Coins className="w-5 h-5 flex-shrink-0" />
-          <h2 className="text-sm font-black tracking-tight text-slate-900">
-            Règlement de dette / Crédit client
-          </h2>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5 text-[#0055b8]">
+            <Coins className="w-5 h-5 flex-shrink-0" />
+            <h2 className="text-sm font-black tracking-tight text-slate-900">
+              Règlement de dette / Encaissement de crédit
+            </h2>
+          </div>
+          <span className="text-[11px] font-bold text-slate-500 bg-white px-2.5 py-1 rounded-xl border border-blue-100">
+            Opérateur : <strong className="text-[#0055b8]">{user?.name || 'Caisse'}</strong>
+          </span>
         </div>
 
-        <form onSubmit={handleOperationSubmit} className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
-          {/* Sélecteur du type d'opération */}
-          <div className="flex-1 min-w-[240px]">
-            <select
-              value={opType}
-              onChange={(e) => setOpType(e.target.value as 'settle' | 'add')}
-              className="w-full px-4 py-3 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:border-[#0055b8] shadow-xs cursor-pointer transition"
+        <form onSubmit={handleOperationSubmit} className="space-y-3">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+            {/* Sélecteur du type d'opération */}
+            <div className="flex-1 min-w-[240px]">
+              <select
+                value={opType}
+                onChange={(e) => setOpType(e.target.value as 'settle' | 'add')}
+                className="w-full px-4 py-3 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:border-[#0055b8] shadow-xs cursor-pointer transition"
+              >
+                <option value="settle">Règlement / Remboursement de dette (-)</option>
+                <option value="add">Ajout d'une dette / Nouveau crédit (+)</option>
+              </select>
+            </div>
+
+            {/* Champ Montant (FCFA) */}
+            <div className="flex-1 min-w-[180px] relative">
+              <input
+                type="number"
+                min="1"
+                step="any"
+                required
+                value={opAmount}
+                onChange={(e) => setOpAmount(e.target.value)}
+                placeholder="Montant (FCFA)"
+                className="w-full pl-4 pr-14 py-3 rounded-2xl bg-white border border-slate-200 text-xs font-bold font-mono text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0055b8] shadow-xs transition"
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                FCFA
+              </span>
+            </div>
+
+            {/* Bouton Valider l'opération */}
+            <button
+              type="submit"
+              disabled={processing}
+              className="px-6 py-3 rounded-2xl bg-[#0055b8] hover:bg-blue-700 text-white font-bold text-xs shadow-lg shadow-blue-500/25 transition active:scale-95 disabled:opacity-50 whitespace-nowrap flex items-center justify-center gap-2"
             >
-              <option value="settle">Règlement / Remboursement de dette (-)</option>
-              <option value="add">Ajout d'une dette / Nouveau crédit (+)</option>
-            </select>
+              <span>{processing ? 'Traitement...' : "Valider l'opération"}</span>
+            </button>
           </div>
 
-          {/* Champ Montant (FCFA) */}
-          <div className="flex-1 min-w-[180px] relative">
+          {/* Champ Motif / Note optionnel */}
+          <div>
             <input
-              type="number"
-              min="1"
-              step="any"
-              required
-              value={opAmount}
-              onChange={(e) => setOpAmount(e.target.value)}
-              placeholder="Montant (FCFA)"
-              className="w-full pl-4 pr-14 py-3 rounded-2xl bg-white border border-slate-200 text-xs font-bold font-mono text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0055b8] shadow-xs transition"
+              type="text"
+              value={opNote}
+              onChange={(e) => setOpNote(e.target.value)}
+              placeholder="Motif ou note spécifique sur l'encaissement (Optionnel)..."
+              className="w-full px-4 py-2 rounded-2xl bg-white border border-slate-200 text-xs font-medium text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#0055b8] transition"
             />
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-              FCFA
-            </span>
           </div>
-
-          {/* Bouton Valider l'opération */}
-          <button
-            type="submit"
-            disabled={processing}
-            className="px-6 py-3 rounded-2xl bg-[#4f46e5] hover:bg-[#4338ca] text-white font-bold text-xs shadow-lg shadow-indigo-500/25 transition active:scale-95 disabled:opacity-50 whitespace-nowrap flex items-center justify-center gap-2"
-          >
-            <span>{processing ? 'Traitement...' : "Valider l'opération"}</span>
-          </button>
         </form>
       </div>
 
-      {/* 3. CARTE HISTORIQUE DES ACHATS DE CE CLIENT */}
+      {/* 3. CARTE HISTORIQUE DES RÈGLEMENTS & ENCAISSEMENTS (QUI A RÉCUPÉRÉ LE MONTANT) */}
+      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-subtle overflow-hidden">
+        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 text-[#0055b8]">
+            <History className="w-5 h-5 flex-shrink-0" />
+            <div>
+              <h2 className="text-sm font-black tracking-tight text-slate-900">
+                Historique des Règlements & Traçabilité des Encaissements
+              </h2>
+              <p className="text-[11px] text-slate-400 font-medium">
+                Détail de qui a récupéré et encaissé chaque paiement pour ce client
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-xl border border-slate-100">
+            {debtMovements.length} opération(s)
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50/80 text-slate-500 font-extrabold border-b border-slate-200/80 uppercase tracking-wider text-[11px]">
+              <tr>
+                <th className="px-5 py-3.5">DATE & HEURE</th>
+                <th className="px-5 py-3.5">TYPE D'OPÉRATION</th>
+                <th className="px-5 py-3.5 text-right">MONTANT</th>
+                <th className="px-5 py-3.5">RÉCUPÉRÉ / ENCAISSÉ PAR</th>
+                <th className="px-5 py-3.5">DÉTAIL & MOTIF</th>
+                {isAdmin && <th className="px-5 py-3.5 text-center">ACTION (ADMIN)</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+              {debtMovements.map((m) => {
+                const isDeposit = m.type === 'deposit';
+                // Extraction du nom de l'encaisseur si disponible
+                const matchCollector = m.reason.match(/\((?:Encaissé par|Effectué par|Par)\s+([^)]+)\)/i);
+                const collectorDisplay = matchCollector ? matchCollector[1] : 'Non spécifié';
+
+                return (
+                  <tr key={m.id} className="hover:bg-slate-50/70 transition">
+                    {/* Date */}
+                    <td className="px-5 py-3.5 text-slate-500 font-medium">
+                      {new Date(m.created_at).toLocaleString('fr-FR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </td>
+
+                    {/* Type d'opération */}
+                    <td className="px-5 py-3.5">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold ${
+                          isDeposit
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}
+                      >
+                        {isDeposit ? (
+                          <>
+                            <ArrowDownCircle className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Règlement de dette</span>
+                          </>
+                        ) : (
+                          <>
+                            <ArrowUpCircle className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Ajout de dette / Crédit</span>
+                          </>
+                        )}
+                      </span>
+                    </td>
+
+                    {/* Montant */}
+                    <td className="px-5 py-3.5 text-right font-mono font-black text-sm">
+                      <span className={isDeposit ? 'text-emerald-700' : 'text-amber-700'}>
+                        {isDeposit ? '-' : '+'}
+                        {(m.amount || 0).toLocaleString('fr-FR')} FCFA
+                      </span>
+                    </td>
+
+                    {/* Récupéré / Encaissé par */}
+                    <td className="px-5 py-3.5">
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50/80 rounded-xl border border-blue-100 text-[#0055b8] font-bold text-xs">
+                        <UserCheck className="w-3.5 h-3.5 text-[#0055b8] flex-shrink-0" />
+                        <span>{collectorDisplay}</span>
+                      </div>
+                    </td>
+
+                    {/* Motif */}
+                    <td className="px-5 py-3.5 text-slate-600">
+                      <span className="truncate max-w-xs block text-xs" title={m.reason}>
+                        {m.reason}
+                      </span>
+                    </td>
+
+                    {/* Action Admin (Suppression de ligne) */}
+                    {isAdmin && (
+                      <td className="px-5 py-3.5 text-center">
+                        <button
+                          onClick={() => handleDeleteMovement(m)}
+                          className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-xl transition shadow-xs"
+                          title="Supprimer cette ligne (Admin)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+
+              {debtMovements.length === 0 && (
+                <tr>
+                  <td colSpan={isAdmin ? 6 : 5} className="text-center py-8 text-slate-400 font-medium">
+                    Aucun règlement spécifique enregistré pour ce client pour le moment.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 4. CARTE HISTORIQUE DES ACHATS DE CE CLIENT */}
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-subtle overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-2.5 text-[#0055b8]">
@@ -456,7 +678,7 @@ export const CustomerDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. MODAL RAPIDE DE MODIFICATION DES INFOS DU CLIENT */}
+      {/* 5. MODAL RAPIDE DE MODIFICATION DES INFOS DU CLIENT */}
       {isEditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100">
@@ -552,25 +774,39 @@ export const CustomerDetail: React.FC = () => {
                 </div>
               </div>
 
-              {/* Ajustement de la dette actuelle */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">Solde de dette actuel (FCFA)</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={editFormData.current_debt}
-                    onChange={(e) =>
-                      setEditFormData({ ...editFormData, current_debt: Number(e.target.value) })
-                    }
-                    className="w-full pl-4 pr-16 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-black font-mono text-slate-900 focus:outline-none focus:border-[#0055b8] focus:bg-white transition"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-xs text-slate-400">
-                    FCFA
+              {/* Ajustement de la dette actuelle : Uniquement accessible pour l'Admin */}
+              {isAdmin ? (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">
+                    Solde de dette actuel (FCFA) <span className="text-[11px] text-slate-400 font-normal">(Admin)</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={editFormData.current_debt}
+                      onChange={(e) =>
+                        setEditFormData({ ...editFormData, current_debt: Number(e.target.value) })
+                      }
+                      className="w-full pl-4 pr-16 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-black font-mono text-slate-900 focus:outline-none focus:border-[#0055b8] focus:bg-white transition"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-xs text-slate-400">
+                      FCFA
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-amber-50/80 rounded-2xl border border-amber-200/70 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
+                    <Lock className="w-4 h-4 text-amber-600" />
+                    <span>Dette actuelle : {(customer.current_debt || 0).toLocaleString('fr-FR')} FCFA</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-lg">
+                    Non modifiable (Caisse)
                   </span>
                 </div>
-              </div>
+              )}
 
               {/* Boutons d'action */}
               <div className="flex gap-3 pt-4 border-t border-slate-100">

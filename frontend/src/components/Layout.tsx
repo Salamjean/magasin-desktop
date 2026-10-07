@@ -16,7 +16,7 @@ export const Layout: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#f3f6fb] font-sans relative">
+    <div className="flex h-screen h-[100dvh] min-h-[100dvh] w-screen overflow-hidden bg-[#f3f6fb] font-sans relative">
       {/* Responsive Left Sidebar & Mobile Sliding Drawer */}
       <Sidebar
         collapsed={collapsed}
@@ -26,15 +26,16 @@ export const Layout: React.FC = () => {
       />
 
       {/* Main Workspace Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden w-full min-w-0">
+      <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden w-full min-w-0">
         {/* Floating Top Navbar with Burger button */}
         <Navbar onToggleSidebar={handleToggle} />
 
-        {/* Dynamic Route Content */}
-        <main className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 md:px-4 md:pb-4 bg-transparent">
+        {/* Dynamic Route Content avec espacement bas confortable pour le web mobile et desktop */}
+        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pb-24 sm:pb-20 md:px-5 md:pb-12 bg-transparent">
           <Outlet />
         </main>
       </div>
     </div>
   );
 };
+

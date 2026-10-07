@@ -2,10 +2,10 @@ import { pool } from '../../config/db.js';
 export const getDashboardStats = async (req, res) => {
     try {
         const today = new Date().toISOString().split('T')[0];
-        // Today revenue
-        const [todaySales] = await pool.execute('SELECT COALESCE(SUM(total_amount), 0) as today_revenue, COUNT(id) as today_count FROM sales WHERE DATE(created_at) = ?', [today]);
-        // Total sales revenue
-        const [allSales] = await pool.execute('SELECT COALESCE(SUM(total_amount), 0) as total_revenue, COUNT(id) as total_count FROM sales');
+        // Today revenue (exclut les ventes annulées)
+        const [todaySales] = await pool.execute("SELECT COALESCE(SUM(total_amount), 0) as today_revenue, COUNT(id) as today_count FROM sales WHERE DATE(created_at) = ? AND payment_status != 'cancelled' AND (status != 'cancelled' OR status IS NULL)", [today]);
+        // Total sales revenue (exclut les ventes annulées)
+        const [allSales] = await pool.execute("SELECT COALESCE(SUM(total_amount), 0) as total_revenue, COUNT(id) as total_count FROM sales WHERE payment_status != 'cancelled' AND (status != 'cancelled' OR status IS NULL)");
         // Total expenses
         const [allExpenses] = await pool.execute('SELECT COALESCE(SUM(amount), 0) as total_expenses FROM expenses');
         // Total customer debts

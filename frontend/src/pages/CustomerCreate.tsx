@@ -40,7 +40,7 @@ export const CustomerCreate: React.FC = () => {
       return;
     }
 
-    const initialDebt = Number(formData.initial_debt) || 0;
+    const initialDebt = user?.role === 'admin' ? (Number(formData.initial_debt) || 0) : 0;
 
     setLoading(true);
     try {
@@ -203,62 +203,104 @@ export const CustomerCreate: React.FC = () => {
           </div>
         </div>
 
-        {/* COLONNE DROITE : CRÉDIT & SOLDE INITIAL */}
-        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-subtle space-y-5">
-          <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
-              <Coins className="w-5 h-5" />
+        {/* COLONNE DROITE : CRÉDIT & SOLDE INITIAL (ADMIN SEULEMENT) */}
+        {user?.role === 'admin' ? (
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-subtle space-y-5">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                <Coins className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider">GESTION DES CRÉANCES & DETTES</h2>
+                <p className="text-[11px] text-slate-400 font-medium">Solde antérieur et suivi financier</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider">GESTION DES CRÉANCES & DETTES</h2>
-              <p className="text-[11px] text-slate-400 font-medium">Solde antérieur et suivi financier</p>
+
+            {/* Solde initial de dette (si existant) */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700">
+                Solde initial de dette (si existant)
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={formData.initial_debt}
+                  onChange={(e) => setFormData({ ...formData, initial_debt: e.target.value })}
+                  placeholder="0"
+                  className="w-full pl-4 pr-16 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-black font-mono text-slate-900 focus:outline-none focus:border-[#0055b8] focus:bg-white transition"
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-xs text-slate-400">
+                  FCFA
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium leading-relaxed bg-amber-50/60 p-3 rounded-xl border border-amber-200/60">
+                💡 <strong>Information :</strong> Si ce client a un reliquat ou une dette impayée antérieure à l'enregistrement sur le logiciel, renseignez le montant ici. Ce montant sera automatiquement inscrit dans son solde débiteur.
+              </p>
+            </div>
+
+            {/* Boutons d'action */}
+            <div className="pt-6 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/customers')}
+                className="px-5 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition active:scale-95"
+              >
+                Annuler
+              </button>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-[#0055b8] hover:bg-blue-700 text-white font-bold text-xs shadow-lg shadow-blue-500/25 transition active:scale-95 disabled:opacity-50"
+              >
+                <Check className="w-4 h-4 stroke-[2.5]" />
+                <span>{loading ? 'Enregistrement...' : '✓ Enregistrer le Client'}</span>
+              </button>
             </div>
           </div>
-
-          {/* Solde initial de dette (si existant) */}
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700">
-              Solde initial de dette (si existant)
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={formData.initial_debt}
-                onChange={(e) => setFormData({ ...formData, initial_debt: e.target.value })}
-                placeholder="0"
-                className="w-full pl-4 pr-16 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-black font-mono text-slate-900 focus:outline-none focus:border-[#0055b8] focus:bg-white transition"
-              />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-xs text-slate-400">
-                FCFA
-              </span>
+        ) : (
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-subtle flex flex-col justify-between space-y-5">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#0055b8] flex items-center justify-center font-bold">
+                  <User className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider">CRÉATION FICHE CLIENT</h2>
+                  <p className="text-[11px] text-slate-400 font-medium">Enregistrement des coordonnées</p>
+                </div>
+              </div>
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600 leading-relaxed space-y-2">
+                <p className="font-bold text-slate-800">🔒 Paramètres financiers réservés à la Direction</p>
+                <p className="text-[11px] text-slate-500">
+                  Le client sera enregistré avec ses coordonnées de contact. Les plafonds de crédit et créances initiales sont gérés exclusivement par l'administrateur.
+                </p>
+              </div>
             </div>
-            <p className="text-[11px] text-slate-500 font-medium leading-relaxed bg-amber-50/60 p-3 rounded-xl border border-amber-200/60">
-              💡 <strong>Information :</strong> Si ce client a un reliquat ou une dette impayée antérieure à l'enregistrement sur le logiciel, renseignez le montant ici. Ce montant sera automatiquement inscrit dans son solde débiteur.
-            </p>
-          </div>
 
-          {/* Boutons d'action */}
-          <div className="pt-6 border-t border-slate-100 flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/customers')}
-              className="px-5 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition active:scale-95"
-            >
-              Annuler
-            </button>
+            {/* Boutons d'action */}
+            <div className="pt-6 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/customers')}
+                className="px-5 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition active:scale-95"
+              >
+                Annuler
+              </button>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-[#0055b8] hover:bg-blue-700 text-white font-bold text-xs shadow-lg shadow-blue-500/25 transition active:scale-95 disabled:opacity-50"
-            >
-              <Check className="w-4 h-4 stroke-[2.5]" />
-              <span>{loading ? 'Enregistrement...' : '✓ Enregistrer le Client'}</span>
-            </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-[#0055b8] hover:bg-blue-700 text-white font-bold text-xs shadow-lg shadow-blue-500/25 transition active:scale-95 disabled:opacity-50"
+              >
+                <Check className="w-4 h-4 stroke-[2.5]" />
+                <span>{loading ? 'Enregistrement...' : '✓ Enregistrer le Client'}</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </form>
     </div>
   );

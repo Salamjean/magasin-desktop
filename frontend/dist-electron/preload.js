@@ -1,8 +1,8 @@
-import { contextBridge, ipcRenderer } from "electron";
-const electronAPI = {
-  pingRemoteDB: () => ipcRenderer.invoke("remote-db-ping"),
-  queryRemoteDB: (sql, params = []) => ipcRenderer.invoke("remote-db-query", sql, params),
-  syncBatchRemoteDB: (operations) => ipcRenderer.invoke("remote-db-sync-batch", operations),
-  printReceipt: (options) => ipcRenderer.invoke("print-receipt", options)
+import { contextBridge as n, ipcRenderer as o } from "electron";
+const r = {
+  pingRemoteDB: () => o.invoke("remote-db-ping"),
+  queryRemoteDB: (e, t = []) => o.invoke("remote-db-query", e, t),
+  syncBatchRemoteDB: (e) => o.invoke("remote-db-sync-batch", e),
+  printReceipt: (e) => o.invoke("print-receipt", e)
 };
-contextBridge.exposeInMainWorld("electronAPI", electronAPI);
+n.exposeInMainWorld("electronAPI", r);

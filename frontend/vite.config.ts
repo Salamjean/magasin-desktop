@@ -4,11 +4,12 @@ import electron from 'vite-plugin-electron';
 import renderer from 'vite-plugin-electron-renderer';
 import path from 'path';
 
-// Detect if we are running in Electron desktop mode or pure Web mode
-const isElectron = process.env.ELECTRON === 'true' || Boolean(process.env.npm_lifecycle_event?.startsWith('electron'));
+// Always compile Electron main and preload files
+const isElectron = true;
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: './',
   plugins: [
     react(),
     ...(isElectron
@@ -27,23 +28,26 @@ export default defineConfig({
                   rollupOptions: {
                     external: ['mysql2', 'mysql2/promise']
                   }
-                }
+                },
+                plugins: [
+                  {
+                    name: 'copy-preload',
+                    closeBundle() {
+                      const src = path.resolve(__dirname, 'electron/preload.cjs');
+                      const dest = path.resolve(__dirname, 'dist-electron/preload.cjs');
+                      try {
+                        const fs = require('fs');
+                        fs.copyFileSync(src, dest);
+                      } catch {
+                        // Fallback import
+                        import('fs').then(fsModule => fsModule.copyFileSync(src, dest)).catch(() => {});
+                      }
+                    }
+                  }
+                ]
               }
-            },
-            {
-              entry: 'electron/preload.ts',
-              onstart(options) {
-                // Notifie le renderer de recharger la page
-                options.reload();
-              },
-              vite: {
-                build: {
-                  outDir: 'dist-electron',
-                }
-              }
-            },
+            }
           ]),
-          renderer(),
         ]
       : []),
   ],

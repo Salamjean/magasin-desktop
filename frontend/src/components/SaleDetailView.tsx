@@ -51,6 +51,7 @@ export const SaleDetailView: React.FC<SaleDetailViewProps> = ({
   const [registerName, setRegisterName] = useState<string>('Caisse Principale N°1 (Allée A)');
   const [cancelReason, setCancelReason] = useState<string>('');
   const [isSubmittingCancel, setIsSubmittingCancel] = useState<boolean>(false);
+  const [deliveryStatus, setDeliveryStatus] = useState<'delivered' | 'in_transit' | 'pending' | 'none'>('none');
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -97,6 +98,18 @@ export const SaleDetailView: React.FC<SaleDetailViewProps> = ({
           product: prodMap.get(it.product_id)
         }));
         setSaleItems(enrichedItems);
+
+        // 5. Statut de la livraison
+        const deliveries = await db.deliveries.where('sale_id').equals(sale.id).toArray();
+        if (deliveries.some((d) => d.status === 'delivered')) {
+          setDeliveryStatus('delivered');
+        } else if (deliveries.some((d) => d.status === 'in_transit')) {
+          setDeliveryStatus('in_transit');
+        } else if (deliveries.some((d) => d.status === 'pending')) {
+          setDeliveryStatus('pending');
+        } else {
+          setDeliveryStatus('none');
+        }
       } else if (sale.items && sale.items.length > 0) {
         setSaleItems(sale.items);
       }
@@ -267,14 +280,26 @@ export const SaleDetailView: React.FC<SaleDetailViewProps> = ({
 
         {/* Droite: 3 Boutons d'actions */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Bouton 1: Programmer Livraison */}
-          <button
-            onClick={() => onDelivery(sale)}
-            className="bg-[#0055b8] hover:bg-blue-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-xs transition active:scale-[0.98]"
-          >
-            <Bike className="w-4 h-4" />
-            <span>Programmer Livraison</span>
-          </button>
+          {/* Bouton 1: Programmer Livraison / État de la livraison */}
+          {deliveryStatus === 'delivered' ? (
+            <div className="bg-emerald-50 text-emerald-700 border border-emerald-200 font-extrabold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-xs select-none">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Commande Déjà Livrée</span>
+            </div>
+          ) : deliveryStatus === 'in_transit' || deliveryStatus === 'pending' ? (
+            <div className="bg-blue-50 text-[#0055b8] border border-blue-200 font-extrabold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-xs select-none">
+              <Bike className="w-4 h-4 text-[#0055b8]" />
+              <span>Livraison en cours</span>
+            </div>
+          ) : !isCancelled ? (
+            <button
+              onClick={() => onDelivery(sale)}
+              className="bg-[#0055b8] hover:bg-blue-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-xs transition active:scale-[0.98]"
+            >
+              <Bike className="w-4 h-4" />
+              <span>Programmer Livraison</span>
+            </button>
+          ) : null}
 
           {/* Bouton 2: Réimprimer */}
           <button

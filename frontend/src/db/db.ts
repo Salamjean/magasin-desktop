@@ -280,22 +280,55 @@ export class AppDatabase extends Dexie {
       sync_queue: '++id, tableName, action, recordId, createdAt'
     });
 
-    // Enregistrement des hooks universels sur toutes les tables pour la synchronisation automatique
+    // Données d'initialisation par défaut pour toute nouvelle installation propre
+    this.on('populate', () => {
+      this.users.add({
+        id: 1,
+        name: 'Administrateur',
+        email: 'admin@gmail.com',
+        password: '$2a$10$fAgXd9fhYdoVDr.2T91Squgf.Niq6LFHHQOTPqWNQIEm1..AzKtuG',
+        role: 'admin',
+        phone: '+225 07 00 00 00',
+        active: true,
+        synced: 1,
+        created_at: new Date().toISOString()
+      });
+      this.cash_registers.add({
+        id: 1,
+        name: 'Caisse Principale',
+        code: 'CAISSE-01',
+        is_active: true,
+        notes: 'Caisse de vente principale',
+        synced: 1
+      });
+      this.settings.bulkAdd([
+        { key: 'company_name', value: 'GEST MAGASIN PRO' },
+        { key: 'company_phone', value: '+225 07 00 00 00' },
+        { key: 'company_email', value: 'admin@gmail.com' },
+        { key: 'company_address', value: "Abidjan, Côte d'Ivoire" },
+        { key: 'company_nif', value: 'CI-ABJ-2026-B-12345' },
+        { key: 'currency', value: 'FCFA' },
+        { key: 'tax_rate', value: '0' },
+        { key: 'min_stock_alert', value: '10' },
+        { key: 'receipt_footer', value: 'Merci de votre visite et à très bientôt !' },
+        { key: 'auto_sync', value: 'true' }
+      ]);
+    });
+
+    // Hooks légers pour déclencher la synchronisation uniquement lors de créations/modifications non synchronisées
     this.tables.forEach((table) => {
-      if (table.name === 'sync_queue') return;
-      table.hook('creating', (primKey, obj, trans) => {
-        if ((obj as any).synced === undefined) {
-          (obj as any).synced = 0;
+      if (table.name === 'sync_queue' || table.name === 'settings') return;
+      table.hook('creating', (_primKey, obj) => {
+        if ((obj as any).synced === 0) {
+          scheduleAutoPush();
         }
-        scheduleAutoPush();
       });
-      table.hook('updating', (modifications, primKey, obj, trans) => {
-        if ((modifications as any).synced === undefined) {
-          (modifications as any).synced = 0;
+      table.hook('updating', (modifications) => {
+        if ((modifications as any).synced === 0) {
+          scheduleAutoPush();
         }
-        scheduleAutoPush();
       });
-      table.hook('deleting', (primKey, obj, trans) => {
+      table.hook('deleting', () => {
         scheduleAutoPush();
       });
     });

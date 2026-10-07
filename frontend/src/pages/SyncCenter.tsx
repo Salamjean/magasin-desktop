@@ -4,12 +4,14 @@ import { db } from '../db/db';
 import { RefreshCw, Wifi, WifiOff, CheckCircle2, AlertCircle, Database, Server, HardDrive, ArrowUpRight, ArrowDownRight, Download } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { downloadSQLiteDatabase } from '../db/sqliteExport';
+import { syncService } from '../db/syncService';
 
 export const SyncCenter: React.FC = () => {
   const { status, syncNow, refreshStatus } = useSync();
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [syncLogs, setSyncLogs] = useState<Array<{ time: string; text: string; type: 'info' | 'success' | 'error' }>>([]);
   const [exportingSqlite, setExportingSqlite] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     loadCounts();
@@ -35,7 +37,7 @@ export const SyncCenter: React.FC = () => {
 
   const handleTriggerSync = async () => {
     const time = new Date().toLocaleTimeString('fr-FR');
-    setSyncLogs((prev) => [{ time, text: 'Démarrage de la synchronisation manuelle...', type: 'info' }, ...prev]);
+    setSyncLogs((prev) => [{ time, text: 'Démarrage de la synchronisation...', type: 'info' }, ...prev]);
 
     const res = await syncNow();
     const timeEnd = new Date().toLocaleTimeString('fr-FR');
@@ -51,7 +53,43 @@ export const SyncCenter: React.FC = () => {
         { time: timeEnd, text: `Échec : ${res.message}`, type: 'error' },
         ...prev
       ]);
-      Swal.fire({ icon: 'warning', title: 'Erreur ou mode hors-ligne', text: res.message, timer: 2500, showConfirmButton: false });
+      Swal.fire({ icon: 'warning', title: 'Attention', text: res.message, timer: 2500, showConfirmButton: false });
+    }
+  };
+
+  const handleResetAndResync = async () => {
+    const confirm = await Swal.fire({
+      title: 'Réaligner avec la Production ?',
+      text: 'Cette action va vider le cache local et télécharger toutes les données fraîches depuis votre serveur de production.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Oui, réaligner',
+      cancelButtonText: 'Annuler',
+      confirmButtonColor: '#0055b8'
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    setResetting(true);
+    try {
+      const ok = await syncService.resetAndResyncFromRemote();
+      if (ok) {
+        await refreshStatus();
+        await loadCounts();
+        Swal.fire({
+          icon: 'success',
+          title: 'Base réalignée avec succès !',
+          text: 'Les catégories, articles et utilisateurs sont synchronisés avec la production.',
+          timer: 2000,
+          showConfirmButton: false
+        });
+      } else {
+        Swal.fire('Erreur', 'Impossible de récupérer les données distantes.', 'error');
+      }
+    } catch (err: any) {
+      Swal.fire('Erreur', err.message, 'error');
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -96,9 +134,19 @@ export const SyncCenter: React.FC = () => {
           </button>
 
           <button
+            onClick={handleResetAndResync}
+            disabled={resetting || status.isSyncing}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-md shadow-slate-800/20 transition active:scale-95 disabled:opacity-50"
+            title="Effacer les données de test locales et récupérer les données propres de la production"
+          >
+            <RefreshCw className={`w-4 h-4 ${resetting ? 'animate-spin' : ''}`} />
+            <span>{resetting ? 'Réalignement...' : 'Réaligner avec la Production'}</span>
+          </button>
+
+          <button
             onClick={handleTriggerSync}
-            disabled={status.isSyncing}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs shadow-lg shadow-primary-500/25 transition active:scale-95 disabled:opacity-50"
+            disabled={status.isSyncing || resetting}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0055b8] hover:bg-blue-700 text-white font-bold text-xs shadow-lg shadow-blue-500/25 transition active:scale-95 disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${status.isSyncing ? 'animate-spin' : ''}`} />
             <span>Synchroniser Maintenant</span>

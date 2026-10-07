@@ -2,6 +2,39 @@ import { Request, Response } from 'express';
 import { pool } from '../../config/db.js';
 import bcrypt from 'bcryptjs';
 
+function toMySQLDateTime(dateStr?: string | null): string {
+  if (!dateStr) {
+    const d = new Date();
+    return d.toISOString().slice(0, 19).replace('T', ' ');
+  }
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) {
+      const now = new Date();
+      return now.toISOString().slice(0, 19).replace('T', ' ');
+    }
+    return d.toISOString().slice(0, 19).replace('T', ' ');
+  } catch {
+    const now = new Date();
+    return now.toISOString().slice(0, 19).replace('T', ' ');
+  }
+}
+
+function toMySQLDate(dateStr?: string | null): string {
+  if (!dateStr) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) {
+      return new Date().toISOString().slice(0, 10);
+    }
+    return d.toISOString().slice(0, 10);
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
 // Récupération complète de toutes les tables MySQL (PULL)
 export const syncPullAll = async (req: Request, res: Response) => {
   try {
@@ -203,18 +236,20 @@ export const syncPush = async (req: Request, res: Response) => {
     // 7. Cash Sessions
     if (tables.cash_sessions && Array.isArray(tables.cash_sessions)) {
       for (const cs of tables.cash_sessions) {
+        const openedAt = toMySQLDateTime(cs.opened_at);
+        const closedAt = cs.closed_at ? toMySQLDateTime(cs.closed_at) : null;
         if (cs.id) {
           await conn.execute(
             `INSERT INTO cash_sessions (id, cash_register_id, user_id, opening_amount, closing_amount, expected_closing_amount, status, opened_at, closed_at, notes, synced)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
              ON DUPLICATE KEY UPDATE closing_amount = VALUES(closing_amount), expected_closing_amount = VALUES(expected_closing_amount), status = VALUES(status), closed_at = VALUES(closed_at), notes = VALUES(notes), synced = 1`,
-            [cs.id, cs.cash_register_id || 1, cs.user_id || 1, cs.opening_amount || 0, cs.closing_amount ?? null, cs.expected_closing_amount ?? null, cs.status || 'open', cs.opened_at, cs.closed_at || null, cs.notes || null]
+            [cs.id, cs.cash_register_id || 1, cs.user_id || 1, cs.opening_amount || 0, cs.closing_amount ?? null, cs.expected_closing_amount ?? null, cs.status || 'open', openedAt, closedAt, cs.notes || null]
           );
         } else {
           await conn.execute(
             `INSERT INTO cash_sessions (cash_register_id, user_id, opening_amount, closing_amount, expected_closing_amount, status, opened_at, closed_at, notes, synced)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-            [cs.cash_register_id || 1, cs.user_id || 1, cs.opening_amount || 0, cs.closing_amount ?? null, cs.expected_closing_amount ?? null, cs.status || 'open', cs.opened_at, cs.closed_at || null, cs.notes || null]
+            [cs.cash_register_id || 1, cs.user_id || 1, cs.opening_amount || 0, cs.closing_amount ?? null, cs.expected_closing_amount ?? null, cs.status || 'open', openedAt, closedAt, cs.notes || null]
           );
         }
       }
@@ -223,18 +258,19 @@ export const syncPush = async (req: Request, res: Response) => {
     // 8. Cash Movements
     if (tables.cash_movements && Array.isArray(tables.cash_movements)) {
       for (const cm of tables.cash_movements) {
+        const mvtDate = toMySQLDateTime(cm.created_at);
         if (cm.id) {
           await conn.execute(
             `INSERT INTO cash_movements (id, cash_session_id, type, amount, reason, created_at, synced)
              VALUES (?, ?, ?, ?, ?, ?, 1)
              ON DUPLICATE KEY UPDATE amount = VALUES(amount), reason = VALUES(reason), synced = 1`,
-            [cm.id, cm.cash_session_id, cm.type, cm.amount, cm.reason || null, cm.created_at]
+            [cm.id, cm.cash_session_id, cm.type, cm.amount, cm.reason || null, mvtDate]
           );
         } else {
           await conn.execute(
             `INSERT INTO cash_movements (cash_session_id, type, amount, reason, created_at, synced)
              VALUES (?, ?, ?, ?, ?, 1)`,
-            [cm.cash_session_id, cm.type, cm.amount, cm.reason || null, cm.created_at]
+            [cm.cash_session_id, cm.type, cm.amount, cm.reason || null, mvtDate]
           );
         }
       }
@@ -245,18 +281,19 @@ export const syncPush = async (req: Request, res: Response) => {
       for (const s of tables.sales) {
         const subtotal = s.subtotal || s.total_amount || 0;
         const totalAmount = s.total_amount || s.final_amount || subtotal;
+        const saleDate = toMySQLDateTime(s.created_at);
         if (s.id) {
           await conn.execute(
             `INSERT INTO sales (id, invoice_number, user_id, customer_id, cash_session_id, subtotal, discount_amount, tax_amount, total_amount, paid_amount, change_amount, payment_method, payment_status, notes, created_at, synced)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
              ON DUPLICATE KEY UPDATE paid_amount = VALUES(paid_amount), change_amount = VALUES(change_amount), payment_status = VALUES(payment_status), notes = VALUES(notes), synced = 1`,
-            [s.id, s.invoice_number, s.user_id || 1, s.customer_id || null, s.cash_session_id || null, subtotal, s.discount_amount || 0, s.tax_amount || 0, totalAmount, s.paid_amount || 0, s.change_amount || 0, s.payment_method || 'cash', s.payment_status || 'paid', s.notes || null, s.created_at]
+            [s.id, s.invoice_number, s.user_id || 1, s.customer_id || null, s.cash_session_id || null, subtotal, s.discount_amount || 0, s.tax_amount || 0, totalAmount, s.paid_amount || 0, s.change_amount || 0, s.payment_method || 'cash', s.payment_status || 'paid', s.notes || null, saleDate]
           );
         } else {
           await conn.execute(
             `INSERT INTO sales (invoice_number, user_id, customer_id, cash_session_id, subtotal, discount_amount, tax_amount, total_amount, paid_amount, change_amount, payment_method, payment_status, notes, created_at, synced)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-            [s.invoice_number, s.user_id || 1, s.customer_id || null, s.cash_session_id || null, subtotal, s.discount_amount || 0, s.tax_amount || 0, totalAmount, s.paid_amount || 0, s.change_amount || 0, s.payment_method || 'cash', s.payment_status || 'paid', s.notes || null, s.created_at]
+            [s.invoice_number, s.user_id || 1, s.customer_id || null, s.cash_session_id || null, subtotal, s.discount_amount || 0, s.tax_amount || 0, totalAmount, s.paid_amount || 0, s.change_amount || 0, s.payment_method || 'cash', s.payment_status || 'paid', s.notes || null, saleDate]
           );
         }
       }
@@ -285,18 +322,19 @@ export const syncPush = async (req: Request, res: Response) => {
     // 10. Stock Movements
     if (tables.stock_movements && Array.isArray(tables.stock_movements)) {
       for (const sm of tables.stock_movements) {
+        const moveDate = toMySQLDateTime(sm.created_at);
         if (sm.id) {
           await conn.execute(
             `INSERT INTO stock_movements (id, product_id, type, quantity, reference, reason, user_id, created_at, synced)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
              ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), reason = VALUES(reason), synced = 1`,
-            [sm.id, sm.product_id, sm.type || 'adjustment', sm.quantity, sm.reference || `MVT-${sm.id}`, sm.reason || 'Ajustement', sm.user_id || 1, sm.created_at || new Date().toISOString()]
+            [sm.id, sm.product_id, sm.type || 'adjustment', sm.quantity, sm.reference || `MVT-${sm.id}`, sm.reason || 'Ajustement', sm.user_id || 1, moveDate]
           );
         } else {
           await conn.execute(
             `INSERT INTO stock_movements (product_id, type, quantity, reference, reason, user_id, created_at, synced)
              VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
-            [sm.product_id, sm.type || 'adjustment', sm.quantity, sm.reference || `MVT-${Date.now()}`, sm.reason || 'Ajustement', sm.user_id || 1, sm.created_at || new Date().toISOString()]
+            [sm.product_id, sm.type || 'adjustment', sm.quantity, sm.reference || `MVT-${Date.now()}`, sm.reason || 'Ajustement', sm.user_id || 1, moveDate]
           );
         }
       }
@@ -305,7 +343,7 @@ export const syncPush = async (req: Request, res: Response) => {
     // 11. Expenses
     if (tables.expenses && Array.isArray(tables.expenses)) {
       for (const exp of tables.expenses) {
-        const expDate = exp.date ? String(exp.date).substring(0, 10) : new Date().toISOString().substring(0, 10);
+        const expDate = toMySQLDate(exp.date);
         if (exp.id) {
           await conn.execute(
             `INSERT INTO expenses (id, title, category, amount, payment_method, notes, user_id, date, synced)
@@ -326,19 +364,20 @@ export const syncPush = async (req: Request, res: Response) => {
     // 12. Purchases & Purchase Items
     if (tables.purchases && Array.isArray(tables.purchases)) {
       for (const pur of tables.purchases) {
-        const receivedAt = pur.received_at || pur.delivery_date || null;
+        const receivedAt = pur.received_at ? toMySQLDateTime(pur.received_at) : (pur.delivery_date ? toMySQLDate(pur.delivery_date) : null);
+        const purDate = toMySQLDateTime(pur.created_at);
         if (pur.id) {
           await conn.execute(
-            `INSERT INTO purchases (id, reference, supplier_id, total_amount, status, received_at, user_id, notes, created_at, synced)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-             ON DUPLICATE KEY UPDATE status = VALUES(status), total_amount = VALUES(total_amount), received_at = VALUES(received_at), notes = VALUES(notes), synced = 1`,
-            [pur.id, pur.reference || `ACH-${pur.id}`, pur.supplier_id, pur.total_amount || 0, pur.status || 'ordered', receivedAt, pur.user_id || 1, pur.notes || null, pur.created_at || new Date().toISOString()]
+            `INSERT INTO purchases (id, reference, supplier_id, total_amount, status, received_at, received_by_user_id, received_by, user_id, notes, created_at, synced)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE status = VALUES(status), total_amount = VALUES(total_amount), received_at = VALUES(received_at), received_by_user_id = VALUES(received_by_user_id), received_by = VALUES(received_by), notes = VALUES(notes), synced = 1`,
+            [pur.id, pur.reference || `ACH-${pur.id}`, pur.supplier_id, pur.total_amount || 0, pur.status || 'ordered', receivedAt, pur.received_by_user_id || null, pur.received_by || null, pur.user_id || 1, pur.notes || null, purDate]
           );
         } else {
           await conn.execute(
-            `INSERT INTO purchases (reference, supplier_id, total_amount, status, received_at, user_id, notes, created_at, synced)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-            [pur.reference || `ACH-${Date.now()}`, pur.supplier_id, pur.total_amount || 0, pur.status || 'ordered', receivedAt, pur.user_id || 1, pur.notes || null, pur.created_at || new Date().toISOString()]
+            `INSERT INTO purchases (reference, supplier_id, total_amount, status, received_at, received_by_user_id, received_by, user_id, notes, created_at, synced)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+            [pur.reference || `ACH-${Date.now()}`, pur.supplier_id, pur.total_amount || 0, pur.status || 'ordered', receivedAt, pur.received_by_user_id || null, pur.received_by || null, pur.user_id || 1, pur.notes || null, purDate]
           );
         }
       }
@@ -366,7 +405,7 @@ export const syncPush = async (req: Request, res: Response) => {
     // 13. Inventories & Inventory Items
     if (tables.inventories && Array.isArray(tables.inventories)) {
       for (const inv of tables.inventories) {
-        const invDate = inv.date ? String(inv.date).substring(0, 10) : new Date().toISOString().substring(0, 10);
+        const invDate = toMySQLDate(inv.date);
         if (inv.id) {
           await conn.execute(
             `INSERT INTO inventories (id, reference, status, user_id, date, notes, synced)
@@ -396,7 +435,7 @@ export const syncPush = async (req: Request, res: Response) => {
         } else {
           await conn.execute(
             `INSERT INTO inventory_items (inventory_id, product_id, theoretical_quantity, real_quantity, difference, cost_variance, synced)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+             VALUES (?, ?, ?, ?, ?, 1)`,
             [ii.inventory_id, ii.product_id, ii.theoretical_quantity || 0, ii.real_quantity || 0, ii.difference || 0, ii.cost_variance || 0]
           );
         }
@@ -407,18 +446,25 @@ export const syncPush = async (req: Request, res: Response) => {
     if (tables.deliveries && Array.isArray(tables.deliveries)) {
       for (const del of tables.deliveries) {
         const livreurId = del.livreur_id || del.delivery_person_id || null;
+        const delCreatedAt = toMySQLDateTime(del.created_at);
+        const delDeliveredAt = del.delivered_at ? toMySQLDateTime(del.delivered_at) : null;
+        const saleId = del.sale_id && Number(del.sale_id) > 0 ? Number(del.sale_id) : null;
+        const customerId = del.customer_id && Number(del.customer_id) > 0 ? Number(del.customer_id) : null;
+        const amountToCollect = Number(del.amount_to_collect || 0);
+        const deliveryType = del.delivery_type || (saleId ? 'sale' : 'free');
+
         if (del.id) {
           await conn.execute(
-            `INSERT INTO deliveries (id, sale_id, customer_name, customer_phone, delivery_address, livreur_id, status, otp_code, notes, created_at, delivered_at, synced)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-             ON DUPLICATE KEY UPDATE status = VALUES(status), livreur_id = VALUES(livreur_id), delivered_at = VALUES(delivered_at), notes = VALUES(notes), synced = 1`,
-            [del.id, del.sale_id, del.customer_name, del.customer_phone || '', del.delivery_address, livreurId, del.status || 'pending', del.otp_code || '0000', del.notes || null, del.created_at || new Date().toISOString(), del.delivered_at || null]
+            `INSERT INTO deliveries (id, sale_id, customer_id, customer_name, customer_phone, delivery_address, amount_to_collect, livreur_id, status, otp_code, notes, items_json, delivery_type, created_at, delivered_at, synced)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE sale_id = VALUES(sale_id), customer_id = VALUES(customer_id), customer_name = VALUES(customer_name), customer_phone = VALUES(customer_phone), delivery_address = VALUES(delivery_address), amount_to_collect = VALUES(amount_to_collect), status = VALUES(status), livreur_id = VALUES(livreur_id), delivered_at = VALUES(delivered_at), notes = VALUES(notes), items_json = VALUES(items_json), delivery_type = VALUES(delivery_type), synced = 1`,
+            [del.id, saleId, customerId, del.customer_name, del.customer_phone || '', del.delivery_address, amountToCollect, livreurId, del.status || 'pending', del.otp_code || '0000', del.notes || null, del.items_json || null, deliveryType, delCreatedAt, delDeliveredAt]
           );
         } else {
           await conn.execute(
-            `INSERT INTO deliveries (sale_id, customer_name, customer_phone, delivery_address, livreur_id, status, otp_code, notes, created_at, delivered_at, synced)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-            [del.sale_id, del.customer_name, del.customer_phone || '', del.delivery_address, livreurId, del.status || 'pending', del.otp_code || '0000', del.notes || null, del.created_at || new Date().toISOString(), del.delivered_at || null]
+            `INSERT INTO deliveries (sale_id, customer_id, customer_name, customer_phone, delivery_address, amount_to_collect, livreur_id, status, otp_code, notes, items_json, delivery_type, created_at, delivered_at, synced)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+            [saleId, customerId, del.customer_name, del.customer_phone || '', del.delivery_address, amountToCollect, livreurId, del.status || 'pending', del.otp_code || '0000', del.notes || null, del.items_json || null, deliveryType, delCreatedAt, delDeliveredAt]
           );
         }
       }
@@ -496,9 +542,36 @@ export const deleteCashRegisterSync = async (req: Request, res: Response) => {
   }
 };
 
+export const updateCashRegisterStatusSync = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { is_active } = req.body;
+  try {
+    const isActive = is_active === false || is_active === 0 || is_active === '0' || is_active === 'false' ? 0 : 1;
+    await pool.execute(
+      'UPDATE cash_registers SET is_active = ?, synced = 1 WHERE id = ?',
+      [isActive, id]
+    );
+    return res.json({
+      success: true,
+      message: `Statut caisse #${id} mis à jour (is_active: ${isActive})`
+    });
+  } catch (err: any) {
+    console.error('Erreur statut caisse MySQL:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 export const deleteDeliverySync = async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
+    const [rows]: any = await pool.query('SELECT status FROM deliveries WHERE id = ?', [id]);
+    if (rows && rows.length > 0 && rows[0].status === 'delivered') {
+      return res.status(400).json({
+        success: false,
+        message: 'Impossible de supprimer une livraison déjà marquée comme livrée.'
+      });
+    }
+
     const [result]: any = await pool.query('DELETE FROM deliveries WHERE id = ?', [id]);
     return res.json({
       success: true,
@@ -507,6 +580,21 @@ export const deleteDeliverySync = async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error('Erreur suppression livraison MySQL:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const deleteProductSync = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const [result]: any = await pool.query('DELETE FROM products WHERE id = ?', [id]);
+    return res.json({
+      success: true,
+      message: 'Produit supprimé avec succès dans MySQL',
+      affectedRows: result.affectedRows
+    });
+  } catch (err: any) {
+    console.error('Erreur suppression produit MySQL:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };

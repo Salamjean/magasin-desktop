@@ -68,7 +68,8 @@ export const receivePurchase = async (req, res) => {
             // Add movement log
             await conn.execute('INSERT INTO stock_movements (product_id, type, quantity, reference, reason, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())', [it.product_id, 'in', it.quantity, purchase.reference, `Réception Bon Commande ${purchase.reference}`, userId]);
         }
-        await conn.execute('UPDATE purchases SET status = ?, received_at = NOW() WHERE id = ?', ['received', id]);
+        const receiverName = req.user?.name || 'Magasinier';
+        await conn.execute('UPDATE purchases SET status = ?, received_at = NOW(), received_by_user_id = ?, received_by = ? WHERE id = ?', ['received', userId, receiverName, id]);
         await conn.commit();
         return res.json({ success: true, message: 'Marchandises réceptionnées et stock mis à jour' });
     }

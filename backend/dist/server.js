@@ -44,9 +44,21 @@ app.use((err, req, res, next) => {
         error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
 });
+// Protection contre les arrêts inattendus lors des coupures de base de données
+process.on('uncaughtException', (err) => {
+    console.warn('⚠️ Exception non interceptée rattrapée (serveur maintenu actif):', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+    console.warn('⚠️ Rejet de promesse non intercepté (serveur maintenu actif):', reason?.message || reason);
+});
 // Start Server
 app.listen(PORT, async () => {
     console.log(`🚀 Serveur Backend Node.js démarré sur : http://localhost:${PORT}`);
     console.log(`📡 Endpoints API disponibles sur : http://localhost:${PORT}/api/`);
-    await testConnection();
+    try {
+        await testConnection();
+    }
+    catch (err) {
+        console.warn('Connexion MySQL initiale en attente...');
+    }
 });
