@@ -796,6 +796,7 @@ export const Pos: React.FC = () => {
                 }}
                 className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#0055b8] transition cursor-pointer"
               >
+                <option value="">Client de passage</option>
                 {customers.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} {c.current_debt > 0 ? `(Dette: ${c.current_debt.toLocaleString()} F)` : ''}

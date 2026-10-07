@@ -33,13 +33,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [discount, setDiscount] = useState<number>(0);
   const [taxRate, setTaxRate] = useState<number>(0);
 
-  // Load default customer and ensure tax rate is 0
+  // Ensure tax rate is 0 (client de passage par défaut : customer reste null)
   useEffect(() => {
     db.settings.put({ key: 'tax_rate', value: '0' }).catch(() => {});
     setTaxRate(0);
-    db.customers.toCollection().first().then(defaultCust => {
-      if (defaultCust) setCustomer(defaultCust);
-    });
   }, []);
 
   const addToCart = (product: Product, quantity: number = 1) => {
