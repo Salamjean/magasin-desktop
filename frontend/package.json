@@ -17,7 +17,7 @@
   },
   "build": {
     "appId": "com.gestmagasin.pro",
-    "productName": "GestMagasin Pro",
+    "productName": "BNELBOUTIQUE",
     "directories": {
       "output": "release"
     },
@@ -41,7 +41,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "GestMagasin Pro"
+      "shortcutName": "BNELBOUTIQUE"
     }
   },
   "dependencies": {

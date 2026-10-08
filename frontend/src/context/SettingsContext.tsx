@@ -15,9 +15,9 @@ export interface StoreSettings {
 }
 
 export const defaultStoreSettings: StoreSettings = {
-  company_name: 'GEST MAGASIN PRO',
+  company_name: 'BNELBOUTIQUE',
   company_phone: '+225 07 88 99 00 11',
-  company_email: 'contact@gestmagasin.ci',
+  company_email: 'contact@bnelboutique.com',
   company_address: 'Abidjan Cocody, Rue des Jardins',
   company_nif: 'CI-ABJ-2026-B-12345',
   company_logo: '',
