@@ -169,7 +169,7 @@ export const SyncCenter: React.FC = () => {
               {status.isOnline ? 'Serveur Distant Connecté & Actif' : 'Mode Hors-Ligne (Stockage Local)'}
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Hôte : <span className="font-mono text-slate-600">magasin.fescad.net:3306 (magasin_db)</span> • Dernière sync :{' '}
+              Hôte : <span className="font-mono text-slate-600">bnelboutique.com:3306 (magasin_db)</span> • Dernière sync :{' '}
               <strong>{status.lastSyncTime || 'Récemment'}</strong>
             </p>
           </div>

@@ -16,6 +16,16 @@ export const Login: React.FC = () => {
   const { settings } = useSettings();
   const navigate = useNavigate();
 
+  const handleForgotPassword = () => {
+    Swal.fire({
+      icon: 'info',
+      title: 'Mot de passe oublié ?',
+      text: "Veuillez contacter l'administrateur pour la modification de votre mot de passe.",
+      confirmButtonColor: '#003874',
+      confirmButtonText: 'D\'accord'
+    });
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -60,7 +70,7 @@ export const Login: React.FC = () => {
 
         {/* Form */}
         <form onSubmit={handleLogin} className="space-y-3.5" autoComplete="off">
-          {/* Identifiant Input (Email pour Admin, Téléphone pour les autres) */}
+          {/* Identifiant Input */}
           <div>
             <label className="block text-[11px] font-bold text-slate-700 mb-1">Identifiant</label>
             <div className="relative">
@@ -71,7 +81,7 @@ export const Login: React.FC = () => {
                 autoComplete="off"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="Email (Admin) ou N° Téléphone"
+                placeholder="N° Téléphone"
                 className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#eef4fc] border border-transparent focus:border-[#0055b8] focus:bg-white text-slate-800 text-xs font-medium focus:outline-none transition shadow-sm"
               />
             </div>
@@ -101,18 +111,28 @@ export const Login: React.FC = () => {
             </div>
           </div>
 
-          {/* Checkbox Se souvenir de moi */}
-          <div className="flex items-center gap-2 pt-0.5">
-            <input
-              type="checkbox"
-              id="rememberMe"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              className="w-3.5 h-3.5 rounded border-slate-300 text-[#003874] focus:ring-[#003874] accent-[#003874] cursor-pointer"
-            />
-            <label htmlFor="rememberMe" className="text-[11px] text-slate-600 font-medium cursor-pointer select-none">
-              Se souvenir de moi
-            </label>
+          {/* Options : Se souvenir de moi & Mot de passe oublié */}
+          <div className="flex items-center justify-between pt-0.5 gap-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="rememberMe"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-3.5 h-3.5 rounded border-slate-300 text-[#003874] focus:ring-[#003874] accent-[#003874] cursor-pointer"
+              />
+              <label htmlFor="rememberMe" className="text-[11px] text-slate-600 font-medium cursor-pointer select-none">
+                Se souvenir de moi
+              </label>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              className="text-[11px] font-semibold text-[#0055b8] hover:text-[#003874] hover:underline transition focus:outline-none whitespace-nowrap"
+            >
+              Mot de passe oublié ?
+            </button>
           </div>
 
           {/* Submit Button */}

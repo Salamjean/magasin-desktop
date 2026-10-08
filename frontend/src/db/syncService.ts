@@ -1,7 +1,7 @@
 import { db } from './db';
 
 export const API_BASE_URL =
-  (import.meta as any).env?.VITE_API_URL || 'https://magasin.fescad.net/api';
+  (import.meta as any).env?.VITE_API_URL || 'https://bnelboutique.com/api';
 
 export interface SyncStatus {
   isOnline: boolean;
@@ -146,7 +146,8 @@ class SyncService {
       const data = json.data;
 
       // 1. Settings
-      if (data.settings && Array.isArray(data.settings) && data.settings.length > 0) {
+      const isSettingsDirty = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('gestmag_settings_dirty') === 'true';
+      if (!isSettingsDirty && data.settings && Array.isArray(data.settings) && data.settings.length > 0) {
         await db.settings.bulkPut(
           data.settings.map((s: any) => ({ key: s.key, value: String(s.value || '') }))
         );

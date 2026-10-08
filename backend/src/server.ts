@@ -21,6 +21,21 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Route Racine
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: '🚀 API GestMagasin Pro - Serveur en ligne et opérationnel',
+    domain: 'bnelboutique.com',
+    status: 'online',
+    endpoints: {
+      health: '/api/health',
+      syncHealth: '/api/sync/health'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Healthcheck
 app.get('/api/health', (req, res) => {
   res.json({

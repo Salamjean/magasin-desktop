@@ -1,4 +1,4 @@
-import { app as o, BrowserWindow as b, ipcMain as d, nativeImage as g } from "electron";
+import { app as o, BrowserWindow as b, ipcMain as d, nativeImage as u } from "electron";
 import c from "node:path";
 import l from "node:fs";
 import { fileURLToPath as _ } from "node:url";
@@ -27,14 +27,14 @@ function v() {
   return { name: "GestMagasin Pro" };
 }
 function w() {
-  const n = v(), a = c.join(process.env.VITE_PUBLIC, "logo.png");
+  const n = v(), r = c.join(process.env.VITE_PUBLIC, "logo.png");
   let e;
   if (n.logo)
     try {
-      n.logo.startsWith("data:image") ? e = g.createFromDataURL(n.logo) : l.existsSync(n.logo) && (e = g.createFromPath(n.logo));
+      n.logo.startsWith("data:image") ? e = u.createFromDataURL(n.logo) : l.existsSync(n.logo) && (e = u.createFromPath(n.logo));
     } catch {
     }
-  !e && l.existsSync(a) && (e = g.createFromPath(a)), t = new b({
+  !e && l.existsSync(r) && (e = u.createFromPath(r)), t = new b({
     width: 1440,
     height: 900,
     minWidth: 1024,
@@ -58,12 +58,12 @@ function w() {
       const s = c.join(process.env.DIST, "index.html");
       t == null || t.loadFile(s);
     }
-  })(), t.webContents.on("console-message", (s, i, u, p, S) => {
-    console.log(`[Renderer Console L${i}] ${u} (${S}:${p})`);
+  })(), t.webContents.on("console-message", (s, i, g, p, S) => {
+    console.log(`[Renderer Console L${i}] ${g} (${S}:${p})`);
   }), t.webContents.on("before-input-event", (s, i) => {
     (i.key === "F12" || i.control && i.shift && i.key.toLowerCase() === "i") && (t == null || t.webContents.toggleDevTools(), s.preventDefault());
-  }), t.webContents.on("did-fail-load", (s, i, u, p) => {
-    console.error(`Erreur de chargement de ${p}: ${i} - ${u}`);
+  }), t.webContents.on("did-fail-load", (s, i, g, p) => {
+    console.error(`Erreur de chargement de ${p}: ${i} - ${g}`);
   }), (!o.isPackaged || m) && t.webContents.openDevTools({ mode: "detach" });
 }
 o.whenReady().then(() => {
@@ -75,9 +75,9 @@ o.on("window-all-closed", () => {
   process.platform !== "darwin" && o.quit();
 });
 const f = {
-  host: "magasin.fescad.net",
+  host: "bnelboutique.com",
   port: 3306,
-  user: "root",
+  user: "magasin_user",
   password: "KKStechnologies2022@",
   database: "magasin_db",
   connectTimeout: 5e3
@@ -90,38 +90,38 @@ d.handle("remote-db-ping", async () => {
     return { success: !1, message: n.message || "Serveur distant inaccessible" };
   }
 });
-d.handle("remote-db-query", async (n, a, e = []) => {
-  let r = null;
+d.handle("remote-db-query", async (n, r, e = []) => {
+  let a = null;
   try {
-    r = await h.createConnection(f);
-    const [s] = await r.execute(a, e);
-    return await r.end(), { success: !0, data: s };
+    a = await h.createConnection(f);
+    const [s] = await a.execute(r, e);
+    return await a.end(), { success: !0, data: s };
   } catch (s) {
-    if (r)
+    if (a)
       try {
-        await r.end();
+        await a.end();
       } catch {
       }
     return { success: !1, error: s.message };
   }
 });
-d.handle("remote-db-sync-batch", async (n, a) => {
+d.handle("remote-db-sync-batch", async (n, r) => {
   let e = null;
   try {
     e = await h.createConnection(f), await e.beginTransaction();
-    for (const r of a)
-      await e.execute(r.sql, r.params);
-    return await e.commit(), await e.end(), { success: !0, count: a.length };
-  } catch (r) {
+    for (const a of r)
+      await e.execute(a.sql, a.params);
+    return await e.commit(), await e.end(), { success: !0, count: r.length };
+  } catch (a) {
     if (e)
       try {
         await e.rollback(), await e.end();
       } catch {
       }
-    return { success: !1, error: r.message };
+    return { success: !1, error: a.message };
   }
 });
-d.handle("print-receipt", async (n, a) => {
+d.handle("print-receipt", async (n, r) => {
   if (!t) return { success: !1, error: "Fenêtre non trouvée" };
   try {
     return t.webContents.print({
@@ -134,17 +134,17 @@ d.handle("print-receipt", async (n, a) => {
     return { success: !1, error: e.message };
   }
 });
-d.handle("update-app-branding", async (n, a) => {
-  if (a.name && t && t.setTitle(a.name), a.logo && t)
+d.handle("update-app-branding", async (n, r) => {
+  if (r.name && t && t.setTitle(r.name), r.logo && t)
     try {
       let e;
-      a.logo.startsWith("data:image") ? e = g.createFromDataURL(a.logo) : l.existsSync(a.logo) && (e = g.createFromPath(a.logo)), e && !e.isEmpty() && t.setIcon(e);
+      r.logo.startsWith("data:image") ? e = u.createFromDataURL(r.logo) : l.existsSync(r.logo) && (e = u.createFromPath(r.logo)), e && !e.isEmpty() && t.setIcon(e);
     } catch (e) {
       console.error("[Electron] Erreur mise à jour icône:", e);
     }
   try {
     const e = c.join(o.getPath("userData"), "branding.json");
-    l.writeFileSync(e, JSON.stringify(a, null, 2), "utf8");
+    l.writeFileSync(e, JSON.stringify(r, null, 2), "utf8");
   } catch (e) {
     console.error("[Electron] Erreur sauvegarde branding:", e);
   }

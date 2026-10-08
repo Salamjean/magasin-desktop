@@ -56,6 +56,8 @@ export const Settings: React.FC = () => {
   });
   const [savingPassword, setSavingPassword] = useState(false);
 
+  const isInitializedRef = useRef(false);
+
   useEffect(() => {
     if (user && user.role !== 'admin') {
       Swal.fire({
@@ -67,10 +69,12 @@ export const Settings: React.FC = () => {
       navigate('/');
       return;
     }
-    if (globalSettings) {
+    // Initialiser les champs une seule fois à l'ouverture de la page pour ne pas écraser la saisie en cours
+    if (!isInitializedRef.current && globalSettings && Object.keys(globalSettings).length > 0) {
       setSettings((prev) => ({ ...prev, ...globalSettings }));
+      isInitializedRef.current = true;
     }
-  }, [globalSettings, user]);
+  }, [globalSettings, user, navigate]);
 
   // Téléversement et optimisation du logo
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

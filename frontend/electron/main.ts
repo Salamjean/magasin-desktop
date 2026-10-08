@@ -138,9 +138,9 @@ app.on('window-all-closed', () => {
 // IPC HANDLERS: Remote MySQL Direct Connection & Sync
 // ==========================================
 const REMOTE_CONFIG = {
-  host: 'magasin.fescad.net',
+  host: 'bnelboutique.com',
   port: 3306,
-  user: 'root',
+  user: 'magasin_user',
   password: 'KKStechnologies2022@',
   database: 'magasin_db',
   connectTimeout: 5000
