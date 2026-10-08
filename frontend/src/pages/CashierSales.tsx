@@ -70,10 +70,7 @@ export const CashierSales: React.FC = () => {
     try {
       let rawSales = await db.sales.reverse().toArray();
       if (user?.id && user?.role === 'caissier') {
-        const userSales = rawSales.filter((s) => s.user_id === user.id);
-        if (userSales.length > 0) {
-          rawSales = userSales;
-        }
+        rawSales = rawSales.filter((s) => s.user_id === user.id);
       }
 
       const rawItems = await db.sale_items.toArray();

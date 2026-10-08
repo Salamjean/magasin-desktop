@@ -72,7 +72,7 @@ export const Pos: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     setPaidAmount(total);
@@ -80,7 +80,10 @@ export const Pos: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const openSession = await db.cash_sessions.where('status').equals('open').first();
+      const openSessions = await db.cash_sessions.where('status').equals('open').toArray();
+      const openSession = user?.id
+        ? openSessions.find((s) => s.user_id === user.id)
+        : openSessions[0];
       setActiveSession(openSession || null);
 
       const allProds = await db.products.toArray();

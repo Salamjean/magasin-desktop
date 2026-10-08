@@ -92,7 +92,10 @@ export const Customers: React.FC = () => {
       });
 
       // Enregistrer le mouvement de caisse avec traçabilité de qui a récupéré le montant
-      const activeSession = await db.cash_sessions.where('status').equals('open').first();
+      const openSessions = await db.cash_sessions.where('status').equals('open').toArray();
+      const activeSession = user?.id
+        ? openSessions.find((s) => s.user_id === user.id) || openSessions[0]
+        : openSessions[0];
       const collectorName = user?.name ? `${user.name} (${user.role === 'admin' ? 'Administrateur' : 'Caissier'})` : 'Caisse Principale';
 
       if (activeSession?.id) {

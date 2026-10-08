@@ -1210,10 +1210,9 @@ export const Dashboard: React.FC = () => {
   // --- VUE 3 : TABLEAU DE BORD DU CAISSIER (Si rôle === 'caissier') ---
   // =========================================================================
   if (user?.role === 'caissier') {
-    // 1. Session de caisse active
+    // 1. Session de caisse active strictement pour ce caissier
     const activeSession =
-      cashSessions.find((s) => s.status === 'open' && (s.user_id === user?.id || !user?.id)) ||
-      cashSessions.find((s) => s.status === 'open') ||
+      cashSessions.find((s) => s.status === 'open' && s.user_id === user?.id) ||
       null;
     const isSessionOpen = !!activeSession && activeSession.status === 'open';
     const sessionOpenedAt = activeSession?.opened_at
@@ -1230,19 +1229,16 @@ export const Dashboard: React.FC = () => {
       (s as any).status === 'cancelled' ||
       Boolean(s.notes && (s.notes.includes('ANNULÉE') || s.notes.toLowerCase().includes('annul')));
 
-    // Ventes de la session (en excluant les ventes annulées)
+    // Ventes de la session pour ce caissier (en excluant les ventes annulées)
     let sessionSales = activeSession?.id
       ? sales.filter(
           (s) =>
             !isCancelled(s) &&
+            s.user_id === user?.id &&
             (s.cash_session_id === activeSession.id ||
             (activeSession.opened_at && s.created_at >= activeSession.opened_at))
         )
       : [];
-
-    if (isSessionOpen && sessionSales.length === 0 && sales.length > 0) {
-      sessionSales = sales.filter((s) => !isCancelled(s)).slice(0, 5);
-    }
 
     const sessionSalesTotal = sessionSales.reduce((acc, s) => acc + (s.total_amount || 0), 0);
     const sessionSalesCount = sessionSales.length;
@@ -1254,13 +1250,10 @@ export const Dashboard: React.FC = () => {
     const sessionCreditCount = sessionCreditSales.length;
     const theoreticalCash = sessionOpeningAmount + sessionCashTotal;
 
-    // Statistiques de la journée pour le caissier (en excluant les ventes annulées)
+    // Statistiques de la journée strictement pour ce caissier (en excluant les ventes annulées)
     let todaySales = sales.filter(
-      (s) => s.created_at?.startsWith(todayStr) && !isCancelled(s)
+      (s) => s.created_at?.startsWith(todayStr) && s.user_id === user?.id && !isCancelled(s)
     );
-    if (todaySales.length === 0 && sales.length > 0) {
-      todaySales = sales.filter((s) => !isCancelled(s));
-    }
 
     const dayTotalSales = todaySales.reduce((acc, s) => acc + (s.total_amount || 0), 0);
     const daySalesCount = todaySales.length;
@@ -1292,7 +1285,9 @@ export const Dashboard: React.FC = () => {
 
     const averageBasket = daySalesCount > 0 ? Math.round(dayTotalSales / daySalesCount) : 0;
 
-    const recentCashierSales = sales.slice(0, 8);
+    const recentCashierSales = sales
+      .filter((s) => s.user_id === user?.id && !isCancelled(s))
+      .slice(0, 8);
 
     return (
       <div className="space-y-4 pb-8 select-none animate-in fade-in duration-200">

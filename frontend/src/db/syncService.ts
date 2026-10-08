@@ -1,4 +1,4 @@
-import { db } from './db';
+import { db, setPullingFromRemote } from './db';
 
 export const API_BASE_URL =
   (import.meta as any).env?.VITE_API_URL || 'https://bnelboutique.com/api';
@@ -65,7 +65,8 @@ class SyncService {
       const [
         users, categories, products, suppliers, customers,
         sales, saleItems, stockMoves, deliveries, expenses,
-        purchases, cashRegisters, cashSessions, cashMovements
+        purchases, cashRegisters, cashSessions, cashMovements,
+        deletions
       ] = await Promise.all([
         db.users.where('synced').equals(0).count(),
         db.categories.where('synced').equals(0).count(),
@@ -81,12 +82,14 @@ class SyncService {
         db.cash_registers.where('synced').equals(0).count(),
         db.cash_sessions.where('synced').equals(0).count(),
         db.cash_movements.where('synced').equals(0).count(),
+        db.sync_queue.where('action').equals('delete').count()
       ]);
 
       return (
         users + categories + products + suppliers + customers +
         sales + saleItems + stockMoves + deliveries + expenses +
-        purchases + cashRegisters + cashSessions + cashMovements
+        purchases + cashRegisters + cashSessions + cashMovements +
+        deletions
       );
     } catch {
       return 0;
@@ -137,6 +140,7 @@ class SyncService {
 
   // PULL : Récupérer toutes les données MySQL et mettre à jour la base IndexedDB locale
   public async pullFromRemote(): Promise<boolean> {
+    setPullingFromRemote(true);
     try {
       const res = await fetch(`${API_BASE_URL}/sync/pull`);
       if (!res.ok) return false;
@@ -144,6 +148,14 @@ class SyncService {
       if (!json.success || !json.data) return false;
 
       const data = json.data;
+
+      // Récupérer les suppressions locales en attente pour ne jamais réinsérer des éléments supprimés localement
+      const allPendingDeletes = await db.sync_queue.where('action').equals('delete').toArray();
+      const pendingDeleteMap: Record<string, Set<number>> = {};
+      allPendingDeletes.forEach((d) => {
+        if (!pendingDeleteMap[d.tableName]) pendingDeleteMap[d.tableName] = new Set();
+        pendingDeleteMap[d.tableName].add(d.recordId);
+      });
 
       // 1. Settings
       const isSettingsDirty = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('gestmag_settings_dirty') === 'true';
@@ -156,16 +168,18 @@ class SyncService {
 
       // 2. Users
       if (data.users && Array.isArray(data.users)) {
-        const remoteIds = new Set(data.users.map((u: any) => Number(u.id)));
+        const delUsers = pendingDeleteMap['users'] || new Set();
+        const validUsers = data.users.filter((u: any) => !delUsers.has(Number(u.id)));
+        const remoteIds = new Set(validUsers.map((u: any) => Number(u.id)));
         const localUsers = await db.users.toArray();
         const toDelete = localUsers.filter((lu) => lu.id && lu.synced === 1 && !remoteIds.has(lu.id));
         if (toDelete.length > 0) {
           await db.users.bulkDelete(toDelete.map((lu) => lu.id!));
         }
 
-        if (data.users.length > 0) {
+        if (validUsers.length > 0) {
           await db.users.bulkPut(
-            data.users.map((u: any) => ({
+            validUsers.map((u: any) => ({
               id: u.id,
               name: u.name,
               email: u.email,
@@ -183,16 +197,18 @@ class SyncService {
 
       // 3. Cash Registers
       if (data.cash_registers && Array.isArray(data.cash_registers)) {
-        const remoteIds = new Set(data.cash_registers.map((cr: any) => Number(cr.id)));
+        const delRegs = pendingDeleteMap['cash_registers'] || new Set();
+        const validRegs = data.cash_registers.filter((cr: any) => !delRegs.has(Number(cr.id)));
+        const remoteIds = new Set(validRegs.map((cr: any) => Number(cr.id)));
         const localRegs = await db.cash_registers.toArray();
         const toDelete = localRegs.filter((lr) => lr.id && lr.synced === 1 && !remoteIds.has(lr.id));
         if (toDelete.length > 0) {
           await db.cash_registers.bulkDelete(toDelete.map((lr) => lr.id!));
         }
 
-        if (data.cash_registers.length > 0) {
+        if (validRegs.length > 0) {
           await db.cash_registers.bulkPut(
-            data.cash_registers.map((cr: any) => ({
+            validRegs.map((cr: any) => ({
               id: cr.id,
               name: cr.name,
               code: cr.code,
@@ -206,15 +222,17 @@ class SyncService {
 
       // 4. Categories
       if (data.categories && Array.isArray(data.categories)) {
-        const remoteIds = new Set(data.categories.map((c: any) => Number(c.id)));
+        const delCats = pendingDeleteMap['categories'] || new Set();
+        const validCats = data.categories.filter((c: any) => !delCats.has(Number(c.id)));
+        const remoteIds = new Set(validCats.map((c: any) => Number(c.id)));
         const localItems = await db.categories.toArray();
         const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
         if (toDelete.length > 0) {
           await db.categories.bulkDelete(toDelete.map((item) => item.id!));
         }
-        if (data.categories.length > 0) {
+        if (validCats.length > 0) {
           await db.categories.bulkPut(
-            data.categories.map((c: any) => ({
+            validCats.map((c: any) => ({
               id: c.id,
               name: c.name,
               description: c.description || undefined,
@@ -228,15 +246,17 @@ class SyncService {
 
       // 5. Suppliers
       if (data.suppliers && Array.isArray(data.suppliers)) {
-        const remoteIds = new Set(data.suppliers.map((s: any) => Number(s.id)));
+        const delSups = pendingDeleteMap['suppliers'] || new Set();
+        const validSups = data.suppliers.filter((s: any) => !delSups.has(Number(s.id)));
+        const remoteIds = new Set(validSups.map((s: any) => Number(s.id)));
         const localItems = await db.suppliers.toArray();
         const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
         if (toDelete.length > 0) {
           await db.suppliers.bulkDelete(toDelete.map((item) => item.id!));
         }
-        if (data.suppliers.length > 0) {
+        if (validSups.length > 0) {
           await db.suppliers.bulkPut(
-            data.suppliers.map((s: any) => ({
+            validSups.map((s: any) => ({
               id: s.id,
               name: s.name,
               contact_name: s.contact_name || undefined,
@@ -253,15 +273,17 @@ class SyncService {
 
       // 6. Customers
       if (data.customers && Array.isArray(data.customers)) {
-        const remoteIds = new Set(data.customers.map((c: any) => Number(c.id)));
+        const delCusts = pendingDeleteMap['customers'] || new Set();
+        const validCusts = data.customers.filter((c: any) => !delCusts.has(Number(c.id)));
+        const remoteIds = new Set(validCusts.map((c: any) => Number(c.id)));
         const localItems = await db.customers.toArray();
         const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
         if (toDelete.length > 0) {
           await db.customers.bulkDelete(toDelete.map((item) => item.id!));
         }
-        if (data.customers.length > 0) {
+        if (validCusts.length > 0) {
           await db.customers.bulkPut(
-            data.customers.map((c: any) => ({
+            validCusts.map((c: any) => ({
               id: c.id,
               name: c.name,
               phone: c.phone || undefined,
@@ -278,7 +300,9 @@ class SyncService {
 
       // 7. Products
       if (data.products && Array.isArray(data.products)) {
-        const remoteIds = new Set(data.products.map((p: any) => Number(p.id)));
+        const delProds = pendingDeleteMap['products'] || new Set();
+        const validProds = data.products.filter((p: any) => !delProds.has(Number(p.id)));
+        const remoteIds = new Set(validProds.map((p: any) => Number(p.id)));
         const localItems = await db.products.toArray();
         const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
         if (toDelete.length > 0) {
@@ -288,7 +312,7 @@ class SyncService {
         const unsyncedProducts = await db.products.where('synced').equals(0).toArray();
         const unsyncedProdIds = new Set(unsyncedProducts.map((p) => p.id));
 
-        const prodsToPut = data.products
+        const prodsToPut = validProds
           .filter((p: any) => !unsyncedProdIds.has(p.id))
           .map((p: any) => ({
             id: p.id,
@@ -316,15 +340,17 @@ class SyncService {
 
       // 8. Cash Sessions
       if (data.cash_sessions && Array.isArray(data.cash_sessions)) {
-        const remoteIds = new Set(data.cash_sessions.map((cs: any) => Number(cs.id)));
+        const delSess = pendingDeleteMap['cash_sessions'] || new Set();
+        const validSess = data.cash_sessions.filter((cs: any) => !delSess.has(Number(cs.id)));
+        const remoteIds = new Set(validSess.map((cs: any) => Number(cs.id)));
         const localItems = await db.cash_sessions.toArray();
         const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
         if (toDelete.length > 0) {
           await db.cash_sessions.bulkDelete(toDelete.map((item) => item.id!));
         }
-        if (data.cash_sessions.length > 0) {
+        if (validSess.length > 0) {
           await db.cash_sessions.bulkPut(
-            data.cash_sessions.map((cs: any) => ({
+            validSess.map((cs: any) => ({
               id: cs.id,
               user_id: cs.user_id,
               cash_register_id: cs.cash_register_id,
@@ -343,15 +369,17 @@ class SyncService {
 
       // 9. Cash Movements
       if (data.cash_movements && Array.isArray(data.cash_movements)) {
-        const remoteIds = new Set(data.cash_movements.map((cm: any) => Number(cm.id)));
+        const delMovs = pendingDeleteMap['cash_movements'] || new Set();
+        const validMovs = data.cash_movements.filter((cm: any) => !delMovs.has(Number(cm.id)));
+        const remoteIds = new Set(validMovs.map((cm: any) => Number(cm.id)));
         const localItems = await db.cash_movements.toArray();
         const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
         if (toDelete.length > 0) {
           await db.cash_movements.bulkDelete(toDelete.map((item) => item.id!));
         }
-        if (data.cash_movements.length > 0) {
+        if (validMovs.length > 0) {
           await db.cash_movements.bulkPut(
-            data.cash_movements.map((cm: any) => ({
+            validMovs.map((cm: any) => ({
               id: cm.id,
               cash_session_id: cm.cash_session_id,
               type: cm.type,
@@ -366,7 +394,9 @@ class SyncService {
 
       // 10. Sales
       if (data.sales && Array.isArray(data.sales)) {
-        const remoteIds = new Set(data.sales.map((s: any) => Number(s.id)));
+        const delSales = pendingDeleteMap['sales'] || new Set();
+        const validSales = data.sales.filter((s: any) => !delSales.has(Number(s.id)));
+        const remoteIds = new Set(validSales.map((s: any) => Number(s.id)));
         const localSales = await db.sales.toArray();
         const toDelete = localSales.filter((ls) => ls.id && ls.synced === 1 && !remoteIds.has(ls.id));
         if (toDelete.length > 0) {
@@ -376,7 +406,7 @@ class SyncService {
         const unsyncedSales = await db.sales.where('synced').equals(0).toArray();
         const unsyncedSaleIds = new Set(unsyncedSales.map((s) => s.id));
 
-        const salesToPut = data.sales
+        const salesToPut = validSales
           .filter((s: any) => !unsyncedSaleIds.has(s.id))
           .map((s: any) => ({
             id: s.id,
@@ -404,15 +434,17 @@ class SyncService {
 
       // 11. Sale Items
       if (data.sale_items && Array.isArray(data.sale_items)) {
-        const remoteIds = new Set(data.sale_items.map((si: any) => Number(si.id)));
+        const delSaleItems = pendingDeleteMap['sale_items'] || new Set();
+        const validSaleItems = data.sale_items.filter((si: any) => !delSaleItems.has(Number(si.id)));
+        const remoteIds = new Set(validSaleItems.map((si: any) => Number(si.id)));
         const localItems = await db.sale_items.toArray();
         const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
         if (toDelete.length > 0) {
           await db.sale_items.bulkDelete(toDelete.map((item) => item.id!));
         }
-        if (data.sale_items.length > 0) {
+        if (validSaleItems.length > 0) {
           await db.sale_items.bulkPut(
-            data.sale_items.map((item: any) => ({
+            validSaleItems.map((item: any) => ({
               id: item.id,
               sale_id: item.sale_id,
               product_id: item.product_id,
@@ -428,15 +460,17 @@ class SyncService {
 
       // 12. Stock Movements
       if (data.stock_movements && Array.isArray(data.stock_movements)) {
-        const remoteIds = new Set(data.stock_movements.map((sm: any) => Number(sm.id)));
+        const delStockMoves = pendingDeleteMap['stock_movements'] || new Set();
+        const validStockMoves = data.stock_movements.filter((sm: any) => !delStockMoves.has(Number(sm.id)));
+        const remoteIds = new Set(validStockMoves.map((sm: any) => Number(sm.id)));
         const localItems = await db.stock_movements.toArray();
         const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
         if (toDelete.length > 0) {
           await db.stock_movements.bulkDelete(toDelete.map((item) => item.id!));
         }
-        if (data.stock_movements.length > 0) {
+        if (validStockMoves.length > 0) {
           await db.stock_movements.bulkPut(
-            data.stock_movements.map((sm: any) => ({
+            validStockMoves.map((sm: any) => ({
               id: sm.id,
               product_id: sm.product_id,
               type: sm.type || 'adjustment',
@@ -453,15 +487,17 @@ class SyncService {
 
       // 13. Expenses
       if (data.expenses && Array.isArray(data.expenses)) {
-        const remoteIds = new Set(data.expenses.map((e: any) => Number(e.id)));
+        const delExp = pendingDeleteMap['expenses'] || new Set();
+        const validExp = data.expenses.filter((e: any) => !delExp.has(Number(e.id)));
+        const remoteIds = new Set(validExp.map((e: any) => Number(e.id)));
         const localItems = await db.expenses.toArray();
         const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
         if (toDelete.length > 0) {
           await db.expenses.bulkDelete(toDelete.map((item) => item.id!));
         }
-        if (data.expenses.length > 0) {
+        if (validExp.length > 0) {
           await db.expenses.bulkPut(
-            data.expenses.map((e: any) => ({
+            validExp.map((e: any) => ({
               id: e.id,
               user_id: e.user_id,
               title: e.title,
@@ -478,15 +514,17 @@ class SyncService {
 
       // 14. Purchases & Purchase Items
       if (data.purchases && Array.isArray(data.purchases)) {
-        const remoteIds = new Set(data.purchases.map((p: any) => Number(p.id)));
+        const delPurch = pendingDeleteMap['purchases'] || new Set();
+        const validPurch = data.purchases.filter((p: any) => !delPurch.has(Number(p.id)));
+        const remoteIds = new Set(validPurch.map((p: any) => Number(p.id)));
         const localItems = await db.purchases.toArray();
         const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
         if (toDelete.length > 0) {
           await db.purchases.bulkDelete(toDelete.map((item) => item.id!));
         }
-        if (data.purchases.length > 0) {
+        if (validPurch.length > 0) {
           await db.purchases.bulkPut(
-            data.purchases.map((pur: any) => ({
+            validPurch.map((pur: any) => ({
               id: pur.id,
               reference: pur.reference || `ACH-${pur.id}`,
               supplier_id: pur.supplier_id,
@@ -502,15 +540,17 @@ class SyncService {
       }
 
       if (data.purchase_items && Array.isArray(data.purchase_items)) {
-        const remoteIds = new Set(data.purchase_items.map((pi: any) => Number(pi.id)));
+        const delPurchItems = pendingDeleteMap['purchase_items'] || new Set();
+        const validPurchItems = data.purchase_items.filter((pi: any) => !delPurchItems.has(Number(pi.id)));
+        const remoteIds = new Set(validPurchItems.map((pi: any) => Number(pi.id)));
         const localItems = await db.purchase_items.toArray();
         const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
         if (toDelete.length > 0) {
           await db.purchase_items.bulkDelete(toDelete.map((item) => item.id!));
         }
-        if (data.purchase_items.length > 0) {
+        if (validPurchItems.length > 0) {
           await db.purchase_items.bulkPut(
-            data.purchase_items.map((pi: any) => ({
+            validPurchItems.map((pi: any) => ({
               id: pi.id,
               purchase_id: pi.purchase_id,
               product_id: pi.product_id,
@@ -525,15 +565,17 @@ class SyncService {
 
       // 15. Inventories & Inventory Items
       if (data.inventories && Array.isArray(data.inventories)) {
-        const remoteIds = new Set(data.inventories.map((inv: any) => Number(inv.id)));
+        const delInv = pendingDeleteMap['inventories'] || new Set();
+        const validInv = data.inventories.filter((inv: any) => !delInv.has(Number(inv.id)));
+        const remoteIds = new Set(validInv.map((inv: any) => Number(inv.id)));
         const localItems = await db.inventories.toArray();
         const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
         if (toDelete.length > 0) {
           await db.inventories.bulkDelete(toDelete.map((item) => item.id!));
         }
-        if (data.inventories.length > 0) {
+        if (validInv.length > 0) {
           await db.inventories.bulkPut(
-            data.inventories.map((inv: any) => ({
+            validInv.map((inv: any) => ({
               id: inv.id,
               reference: inv.reference || `INV-${inv.id}`,
               status: inv.status || 'draft',
@@ -547,15 +589,17 @@ class SyncService {
       }
 
       if (data.inventory_items && Array.isArray(data.inventory_items)) {
-        const remoteIds = new Set(data.inventory_items.map((ii: any) => Number(ii.id)));
+        const delInvItems = pendingDeleteMap['inventory_items'] || new Set();
+        const validInvItems = data.inventory_items.filter((ii: any) => !delInvItems.has(Number(ii.id)));
+        const remoteIds = new Set(validInvItems.map((ii: any) => Number(ii.id)));
         const localItems = await db.inventory_items.toArray();
         const toDelete = localItems.filter((item) => item.id && item.synced === 1 && !remoteIds.has(item.id));
         if (toDelete.length > 0) {
           await db.inventory_items.bulkDelete(toDelete.map((item) => item.id!));
         }
-        if (data.inventory_items.length > 0) {
+        if (validInvItems.length > 0) {
           await db.inventory_items.bulkPut(
-            data.inventory_items.map((ii: any) => ({
+            validInvItems.map((ii: any) => ({
               id: ii.id,
               inventory_id: ii.inventory_id,
               product_id: ii.product_id,
@@ -571,16 +615,18 @@ class SyncService {
 
       // 16. Deliveries
       if (data.deliveries && Array.isArray(data.deliveries)) {
-        const remoteIds = new Set(data.deliveries.map((d: any) => Number(d.id)));
+        const delDels = pendingDeleteMap['deliveries'] || new Set();
+        const validDels = data.deliveries.filter((d: any) => !delDels.has(Number(d.id)));
+        const remoteIds = new Set(validDels.map((d: any) => Number(d.id)));
         const localDels = await db.deliveries.toArray();
         const toDelete = localDels.filter((ld) => ld.id && ld.synced === 1 && !remoteIds.has(ld.id));
         if (toDelete.length > 0) {
           await db.deliveries.bulkDelete(toDelete.map((ld) => ld.id!));
         }
 
-        if (data.deliveries.length > 0) {
+        if (validDels.length > 0) {
           await db.deliveries.bulkPut(
-            data.deliveries.map((d: any) => ({
+            validDels.map((d: any) => ({
               id: d.id,
               sale_id: d.sale_id ? Number(d.sale_id) : undefined,
               customer_id: d.customer_id ? Number(d.customer_id) : undefined,
@@ -607,6 +653,8 @@ class SyncService {
     } catch (err) {
       console.warn('Erreur pullFromRemote:', err);
       return false;
+    } finally {
+      setPullingFromRemote(false);
     }
   }
 
@@ -631,7 +679,8 @@ class SyncService {
         unsyncedInventories,
         unsyncedInventoryItems,
         unsyncedDeliveries,
-        allSettings
+        allSettings,
+        pendingDeletions
       ] = await Promise.all([
         db.users.where('synced').equals(0).toArray(),
         db.cash_registers.where('synced').equals(0).toArray(),
@@ -650,7 +699,8 @@ class SyncService {
         db.inventories.where('synced').equals(0).toArray(),
         db.inventory_items.where('synced').equals(0).toArray(),
         db.deliveries.where('synced').equals(0).toArray(),
-        db.settings.toArray()
+        db.settings.toArray(),
+        db.sync_queue.where('action').equals('delete').toArray()
       ]);
 
 function toMySQLDateTime(dateStr?: string | null): string {
@@ -686,9 +736,10 @@ function toMySQLDate(dateStr?: string | null): string {
   }
 }
 
-      const isSettingsDirty = sessionStorage.getItem('gestmag_settings_dirty') === 'true';
+      const isSettingsDirty = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('gestmag_settings_dirty') === 'true';
 
       const hasUnsynced =
+        pendingDeletions.length > 0 ||
         isSettingsDirty ||
         unsyncedUsers.length > 0 ||
         unsyncedRegisters.length > 0 ||
@@ -912,7 +963,8 @@ function toMySQLDate(dateStr?: string | null): string {
           inventories: formattedInventories,
           inventory_items: formattedInventoryItems,
           deliveries: formattedDeliveries
-        }
+        },
+        deletions: pendingDeletions.map((d) => ({ table: d.tableName, id: d.recordId }))
       };
 
       const res = await fetch(`${API_BASE_URL}/sync/push`, {
@@ -925,6 +977,9 @@ function toMySQLDate(dateStr?: string | null): string {
         const json = await res.json();
         if (json.success) {
           sessionStorage.removeItem('gestmag_settings_dirty');
+          if (pendingDeletions.length > 0) {
+            await db.sync_queue.where('action').equals('delete').delete();
+          }
           await this.markAllAsSynced();
           return true;
         }

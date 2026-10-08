@@ -65,12 +65,15 @@ export const CashSessionPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user]);
 
   const loadData = async () => {
     try {
-      // Find open session
-      const currentOpen = await db.cash_sessions.where('status').equals('open').first();
+      // Find open session for current user
+      const openSessions = await db.cash_sessions.where('status').equals('open').toArray();
+      const currentOpen = user?.id
+        ? openSessions.find((s) => s.user_id === user.id)
+        : openSessions[0];
       setActiveSession(currentOpen || null);
 
       if (currentOpen) {

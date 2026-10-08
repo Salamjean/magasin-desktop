@@ -18,6 +18,9 @@ export const CashOpeningDeclaration: React.FC<CashOpeningDeclarationProps> = ({ 
   const currency = settings.currency || 'FCFA';
 
   const [cashRegisters, setCashRegisters] = useState<CashRegister[]>([]);
+  const [activeRegisterSessions, setActiveRegisterSessions] = useState<
+    Map<number, { cashierName: string; openedAt: string }>
+  >(new Map());
   const [selectedRegisterId, setSelectedRegisterId] = useState<number | null>(null);
   const [openingAmount, setOpeningAmount] = useState<number>(0);
   const [notes, setNotes] = useState<string>('');
@@ -30,6 +33,19 @@ export const CashOpeningDeclaration: React.FC<CashOpeningDeclarationProps> = ({ 
   const loadRegisters = async () => {
     try {
       const registers = await db.cash_registers.toArray();
+      const openSessions = await db.cash_sessions.where('status').equals('open').toArray();
+      const users = await db.users.toArray();
+      const userMap = new Map(users.map((u) => [u.id!, u.name]));
+
+      const activeMap = new Map<number, { cashierName: string; openedAt: string }>();
+      for (const s of openSessions) {
+        activeMap.set(s.cash_register_id, {
+          cashierName: userMap.get(s.user_id) || `Caissier #${s.user_id}`,
+          openedAt: s.opened_at
+        });
+      }
+      setActiveRegisterSessions(activeMap);
+
       const mapByCode = new Map<string, CashRegister>();
       const duplicateIds: number[] = [];
 
@@ -85,8 +101,11 @@ export const CashOpeningDeclaration: React.FC<CashOpeningDeclarationProps> = ({ 
 
       setCashRegisters(activeRegs);
       if (activeRegs.length > 0) {
+        // Privilégier une caisse libre non encore occupée
+        const firstFreeReg = activeRegs.find((r) => !activeMap.has(r.id!));
+        const defaultReg = firstFreeReg || activeRegs[0];
         setSelectedRegisterId((prev) =>
-          prev && activeRegs.some((r) => r.id === prev) ? prev : activeRegs[0].id || null
+          prev && activeRegs.some((r) => r.id === prev) ? prev : defaultReg.id || null
         );
       } else {
         setSelectedRegisterId(null);
@@ -195,6 +214,9 @@ export const CashOpeningDeclaration: React.FC<CashOpeningDeclarationProps> = ({ 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
                 {cashRegisters.map((reg) => {
                   const isSelected = selectedRegisterId === reg.id;
+                  const activeSessionInfo = reg.id ? activeRegisterSessions.get(reg.id) : undefined;
+                  const isOccupied = !!activeSessionInfo;
+
                   return (
                     <div
                       key={reg.id || reg.code}
@@ -202,24 +224,38 @@ export const CashOpeningDeclaration: React.FC<CashOpeningDeclarationProps> = ({ 
                       className={`rounded-2xl p-4 border transition cursor-pointer flex flex-col justify-between min-h-[115px] ${
                         isSelected
                           ? 'border-2 border-[#0055b8] bg-blue-50/20 shadow-sm ring-1 ring-[#0055b8]/20'
+                          : isOccupied
+                          ? 'border border-amber-200/90 bg-amber-50/20 hover:border-amber-300'
                           : 'border border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/40'
                       }`}
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <div
-                          className={`w-8 h-8 rounded-xl flex items-center justify-center transition ${
+                          className={`w-8 h-8 rounded-xl flex items-center justify-center transition flex-shrink-0 ${
                             isSelected
                               ? 'bg-[#0055b8] text-white shadow-sm'
+                              : isOccupied
+                              ? 'bg-amber-100 text-amber-700'
                               : 'bg-slate-100 text-slate-500'
                           }`}
                         >
                           <Laptop className="w-4 h-4" />
                         </div>
 
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          Disponible
-                        </span>
+                        {isOccupied ? (
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold truncate max-w-[130px]"
+                            title={`Ouverte par ${activeSessionInfo?.cashierName}`}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse flex-shrink-0"></span>
+                            <span className="truncate">{activeSessionInfo?.cashierName}</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold flex-shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            Disponible
+                          </span>
+                        )}
                       </div>
 
                       <div className="mt-3">

@@ -200,7 +200,10 @@ export const CustomerDetail: React.FC = () => {
       });
 
       // Enregistrement du mouvement de caisse avec traçabilité de qui a récupéré le montant
-      const activeSession = await db.cash_sessions.where('status').equals('open').first();
+      const openSessions = await db.cash_sessions.where('status').equals('open').toArray();
+      const activeSession = user?.id
+        ? openSessions.find((s) => s.user_id === user.id) || openSessions[0]
+        : openSessions[0];
       const movementReason = isSettle
         ? `Règlement dette client [${customer.name}] (Encaissé par ${collectorName})${opNote ? ` — Note: ${opNote}` : ''}`
         : `Ajout dette/crédit client [${customer.name}] (Effectué par ${collectorName})${opNote ? ` — Note: ${opNote}` : ''}`;

@@ -73,10 +73,10 @@ export const CaissierCashManagement: React.FC = () => {
       const allSales = await db.sales.toArray();
       const allMovements = await db.cash_movements.toArray();
 
-      // 1. Trouver la session active (ouverte) pour ce caissier ou globale
+      // 1. Trouver la session active (ouverte) strictement pour ce caissier
       const openSession = allSessions.find(
-        (s) => s.status === 'open' && (!user || s.user_id === user.id)
-      ) || allSessions.find((s) => s.status === 'open');
+        (s) => s.status === 'open' && (user?.role === 'admin' || !user?.id || s.user_id === user.id)
+      );
 
       if (openSession) {
         setActiveSession(openSession);

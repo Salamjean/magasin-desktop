@@ -113,7 +113,7 @@ export const Stock: React.FC = () => {
         afterStock: newStock,
         reason: m.reason || 'Mouvement standard',
         reference: m.reference || 'REF-000',
-        operatorName: userMap.get(m.user_id) || 'Alain Directeur'
+        operatorName: userMap.get(m.user_id) || (m.user_id ? `Utilisateur #${m.user_id}` : 'Système / Magasinier')
       });
     });
 

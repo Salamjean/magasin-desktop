@@ -48,12 +48,9 @@ export const Returns: React.FC = () => {
           !(s.notes && s.notes.includes('ANNULÉE'))
       );
 
-      // Si caissier, afficher ses ventes récentes ou toutes les ventes
+      // Si caissier, afficher strictement ses ventes
       if (user?.id && user?.role === 'caissier') {
-        const userSales = salesList.filter((s) => s.user_id === user.id);
-        if (userSales.length > 0) {
-          salesList = userSales;
-        }
+        salesList = salesList.filter((s) => s.user_id === user.id);
       }
 
       const allItems = await db.sale_items.toArray();

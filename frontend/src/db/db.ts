@@ -315,7 +315,7 @@ export class AppDatabase extends Dexie {
       ]);
     });
 
-    // Hooks légers pour déclencher la synchronisation uniquement lors de créations/modifications non synchronisées
+    // Hooks légers pour déclencher la synchronisation uniquement lors de créations/modifications/suppressions
     this.tables.forEach((table) => {
       if (table.name === 'sync_queue' || table.name === 'settings') return;
       table.hook('creating', (_primKey, obj) => {
@@ -328,11 +328,72 @@ export class AppDatabase extends Dexie {
           scheduleAutoPush();
         }
       });
-      table.hook('deleting', () => {
-        scheduleAutoPush();
+      table.hook('deleting', (primKey) => {
+        if (!isPullingFromRemote && typeof primKey === 'number' && primKey > 0) {
+          Dexie.ignoreTransaction(async () => {
+            try {
+              const existing = await db.sync_queue
+                .where('tableName')
+                .equals(table.name)
+                .filter((q) => q.action === 'delete' && q.recordId === Number(primKey))
+                .first();
+
+              if (!existing) {
+                await db.sync_queue.add({
+                  tableName: table.name,
+                  action: 'delete',
+                  recordId: Number(primKey),
+                  payload: '',
+                  createdAt: new Date().toISOString(),
+                  attempts: 0
+                });
+              }
+              scheduleAutoPush();
+            } catch (err) {
+              console.warn(`Erreur enregistrement suppression hook ${table.name}:`, err);
+            }
+          });
+        } else {
+          scheduleAutoPush();
+        }
       });
     });
   }
+}
+
+export let isPullingFromRemote = false;
+export function setPullingFromRemote(val: boolean) {
+  isPullingFromRemote = val;
+}
+
+export async function safeDeleteRecord(tableName: string, id: number): Promise<void> {
+  if (!id) return;
+  const dbTable = (db as any)[tableName];
+  if (!dbTable) return;
+
+  await Dexie.ignoreTransaction(async () => {
+    try {
+      const existing = await db.sync_queue
+        .where('tableName')
+        .equals(tableName)
+        .filter((q) => q.action === 'delete' && q.recordId === Number(id))
+        .first();
+
+      if (!existing) {
+        await db.sync_queue.add({
+          tableName,
+          action: 'delete',
+          recordId: Number(id),
+          payload: '',
+          createdAt: new Date().toISOString(),
+          attempts: 0
+        });
+      }
+    } catch (_) {}
+  });
+
+  await dbTable.delete(id);
+  scheduleAutoPush();
 }
 
 let syncTimer: any = null;
