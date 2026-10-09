@@ -135,11 +135,11 @@ app.on('window-all-closed', () => {
 });
 
 const REMOTE_CONFIG = {
-  host: process.env.VITE_REMOTE_DB_HOST || (import.meta as any).env?.VITE_REMOTE_DB_HOST || 'bnelboutique.com',
+  host: process.env.VITE_REMOTE_DB_HOST || (import.meta as any).env?.VITE_REMOTE_DB_HOST || '',
   port: Number(process.env.VITE_REMOTE_DB_PORT || (import.meta as any).env?.VITE_REMOTE_DB_PORT) || 3306,
-  user: process.env.VITE_REMOTE_DB_USER || (import.meta as any).env?.VITE_REMOTE_DB_USER || 'magasin_user',
-  password: process.env.VITE_REMOTE_DB_PASSWORD || (import.meta as any).env?.VITE_REMOTE_DB_PASSWORD || 'KKStechnologies2022@',
-  database: process.env.VITE_REMOTE_DB_NAME || (import.meta as any).env?.VITE_REMOTE_DB_NAME || 'magasin_db',
+  user: process.env.VITE_REMOTE_DB_USER || (import.meta as any).env?.VITE_REMOTE_DB_USER || '',
+  password: process.env.VITE_REMOTE_DB_PASSWORD || (import.meta as any).env?.VITE_REMOTE_DB_PASSWORD || '',
+  database: process.env.VITE_REMOTE_DB_NAME || (import.meta as any).env?.VITE_REMOTE_DB_NAME || '',
   connectTimeout: Number(process.env.VITE_REMOTE_DB_TIMEOUT || (import.meta as any).env?.VITE_REMOTE_DB_TIMEOUT) || 5000
 };
 
