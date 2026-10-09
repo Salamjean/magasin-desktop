@@ -11,10 +11,69 @@ import magasinierRoutes from './routes/magasinier.routes.js';
 import livreurRoutes from './routes/livreur.routes.js';
 import syncRoutes from './routes/sync.routes.js';
 
+import statusMonitor from 'express-status-monitor';
+
 dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
+
+// Monitoring & Charge Serveur (express-status-monitor)
+// Sécurisation de l'accès au monitoring par Basic Auth (identifiants configurables dans .env)
+app.use((req, res, next) => {
+  if (req.path === '/status' || req.path.startsWith('/status/')) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      res.setHeader('WWW-Authenticate', 'Basic realm="GestMAG Server Monitoring"');
+      return res.status(401).send('Authentification requise');
+    }
+    const [scheme, credentials] = authHeader.split(' ');
+    if (scheme !== 'Basic' || !credentials) {
+      res.setHeader('WWW-Authenticate', 'Basic realm="GestMAG Server Monitoring"');
+      return res.status(401).send('Format d\'authentification invalide');
+    }
+    const decoded = Buffer.from(credentials, 'base64').toString('utf-8');
+    const [user, pass] = decoded.split(':');
+    const expectedUser = process.env.STATUS_USER || 'admin';
+    const expectedPass = process.env.STATUS_PASSWORD || 'GestMag2026!';
+
+    if (user === expectedUser && pass === expectedPass) {
+      return next();
+    }
+    res.setHeader('WWW-Authenticate', 'Basic realm="GestMAG Server Monitoring"');
+    return res.status(401).send('Identifiants incorrects');
+  }
+  next();
+});
+
+// Initialisation du middleware de monitoring en première position pour capturer le trafic
+app.use(
+  statusMonitor({
+    title: 'GestMAG - Monitoring Serveur & Charge',
+    path: '/status',
+    spans: [
+      { interval: 1, retention: 60 },
+      { interval: 5, retention: 60 },
+      { interval: 15, retention: 60 }
+    ],
+    chartVisibility: {
+      cpu: true,
+      mem: true,
+      load: true,
+      responseTime: true,
+      rps: true,
+      statusCodes: true
+    },
+    healthChecks: [
+      {
+        protocol: 'http',
+        host: 'localhost',
+        path: '/api/health',
+        port: String(PORT)
+      }
+    ]
+  })
+);
 
 // Middlewares
 app.use(cors({ origin: true, credentials: true }));

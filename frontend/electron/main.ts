@@ -134,16 +134,13 @@ app.on('window-all-closed', () => {
   }
 });
 
-// ==========================================
-// IPC HANDLERS: Remote MySQL Direct Connection & Sync
-// ==========================================
 const REMOTE_CONFIG = {
-  host: 'bnelboutique.com',
-  port: 3306,
-  user: 'magasin_user',
-  password: 'KKStechnologies2022@',
-  database: 'magasin_db',
-  connectTimeout: 5000
+  host: process.env.VITE_REMOTE_DB_HOST || (import.meta as any).env?.VITE_REMOTE_DB_HOST || 'bnelboutique.com',
+  port: Number(process.env.VITE_REMOTE_DB_PORT || (import.meta as any).env?.VITE_REMOTE_DB_PORT) || 3306,
+  user: process.env.VITE_REMOTE_DB_USER || (import.meta as any).env?.VITE_REMOTE_DB_USER || 'magasin_user',
+  password: process.env.VITE_REMOTE_DB_PASSWORD || (import.meta as any).env?.VITE_REMOTE_DB_PASSWORD || 'KKStechnologies2022@',
+  database: process.env.VITE_REMOTE_DB_NAME || (import.meta as any).env?.VITE_REMOTE_DB_NAME || 'magasin_db',
+  connectTimeout: Number(process.env.VITE_REMOTE_DB_TIMEOUT || (import.meta as any).env?.VITE_REMOTE_DB_TIMEOUT) || 5000
 };
 
 // Check Remote DB Connection Status

@@ -86,13 +86,54 @@ export const syncPullAll = async (req, res) => {
 };
 // Envoi et enregistrement des modifications locales vers MySQL (PUSH)
 export const syncPush = async (req, res) => {
-    const { tables } = req.body;
-    if (!tables || typeof tables !== 'object') {
-        return res.status(400).json({ success: false, message: 'Payload tables requis' });
+    const { tables, deletions } = req.body;
+    if ((!tables || typeof tables !== 'object') && (!deletions || !Array.isArray(deletions))) {
+        return res.status(400).json({ success: false, message: 'Payload tables ou deletions requis' });
     }
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
+        // 0. Traitement universel des suppressions demandées
+        if (deletions && Array.isArray(deletions) && deletions.length > 0) {
+            for (const del of deletions) {
+                const tableName = String(del.table || '').trim().toLowerCase();
+                const recordId = Number(del.id);
+                const allowedTables = [
+                    'categories', 'products', 'suppliers', 'customers', 'users',
+                    'cash_registers', 'cash_sessions', 'cash_movements', 'sales',
+                    'sale_items', 'stock_movements', 'deliveries', 'expenses',
+                    'purchases', 'purchase_items', 'inventories', 'inventory_items'
+                ];
+                if (allowedTables.includes(tableName) && recordId > 0) {
+                    try {
+                        if (tableName === 'categories') {
+                            await conn.execute('UPDATE products SET category_id = NULL WHERE category_id = ?', [recordId]);
+                        }
+                        else if (tableName === 'purchases') {
+                            await conn.execute('DELETE FROM purchase_items WHERE purchase_id = ?', [recordId]);
+                        }
+                        else if (tableName === 'inventories') {
+                            await conn.execute('DELETE FROM inventory_items WHERE inventory_id = ?', [recordId]);
+                        }
+                        else if (tableName === 'sales') {
+                            await conn.execute('DELETE FROM sale_items WHERE sale_id = ?', [recordId]);
+                            await conn.execute('DELETE FROM deliveries WHERE sale_id = ?', [recordId]);
+                        }
+                        else if (tableName === 'cash_registers') {
+                            await conn.execute('DELETE FROM cash_sessions WHERE cash_register_id = ?', [recordId]);
+                        }
+                        await conn.execute(`DELETE FROM \`${tableName}\` WHERE id = ?`, [recordId]);
+                    }
+                    catch (delErr) {
+                        console.warn(`Erreur suppression MySQL table ${tableName} id ${recordId}:`, delErr.message);
+                    }
+                }
+            }
+        }
+        if (!tables) {
+            await conn.commit();
+            return res.json({ success: true, message: 'Suppressions MySQL effectuées avec succès' });
+        }
         // 0. Users (Mots de passe sécurisés avec hash bcrypt)
         if (tables.users && Array.isArray(tables.users)) {
             for (const u of tables.users) {
