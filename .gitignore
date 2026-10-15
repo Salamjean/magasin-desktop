@@ -1,0 +1,11 @@
+dist
+dist-electron
+release
+*.exe
+node_modules
+*.log
+.DS_Store
+.env
+DEPLOIEMENT_SCRIPTS.txt
+deploy.bat
+deploy-with-reset-db.bat
