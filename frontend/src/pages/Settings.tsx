@@ -22,7 +22,10 @@ import {
   Trash2,
   Lock,
   X,
-  User
+  User,
+  Printer,
+  Tag,
+  FileText
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -42,7 +45,11 @@ export const Settings: React.FC = () => {
     company_logo: globalSettings.company_logo || '',
     currency: globalSettings.currency || 'FCFA',
     min_stock_alert: globalSettings.min_stock_alert || '10',
-    receipt_footer: globalSettings.receipt_footer || 'Merci pour votre visite et à très bientôt !'
+    receipt_footer: globalSettings.receipt_footer || 'Merci pour votre visite et à très bientôt !',
+    label_width: globalSettings.label_width || '45',
+    label_height: globalSettings.label_height || '26',
+    receipt_format: globalSettings.receipt_format || 'thermal',
+    receipt_thermal_width: globalSettings.receipt_thermal_width || '80'
   });
 
   const [saving, setSaving] = useState(false);
@@ -489,6 +496,224 @@ export const Settings: React.FC = () => {
             </div>
           </div>
 
+        </div>
+
+        {/* 3. CARTE UNIFIÉE : REÇUS DE VENTE & ÉTIQUETTES CODE-BARRES */}
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-subtle">
+          {/* Grille interne en 2 colonnes séparées */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
+            
+            {/* COLONNE GAUCHE (50%) : FORMAT DES REÇUS DE VENTE */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold flex-shrink-0">
+                  <Receipt className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                    FORMAT DES REÇUS DE VENTE
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    Choisissez le format de sortie pour vos tickets et factures
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Option 1: Imprimante Thermique */}
+                <div
+                  onClick={() => setSettings({ ...settings, receipt_format: 'thermal' })}
+                  className={`p-3.5 rounded-2xl border-2 cursor-pointer transition flex flex-col justify-between gap-2 ${
+                    (settings.receipt_format || 'thermal') === 'thermal'
+                      ? 'border-indigo-600 bg-indigo-50/50 shadow-xs'
+                      : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100/60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Receipt className="w-4 h-4 text-indigo-600" />
+                      <span className="font-bold text-xs text-slate-900">Imprimante Thermique</span>
+                    </div>
+                    <input
+                      type="radio"
+                      name="receipt_format"
+                      checked={(settings.receipt_format || 'thermal') === 'thermal'}
+                      onChange={() => setSettings({ ...settings, receipt_format: 'thermal' })}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Ticket de caisse en rouleau continu (80mm ou 58mm).
+                  </p>
+
+                  {(settings.receipt_format || 'thermal') === 'thermal' && (
+                    <div className="pt-2 border-t border-indigo-100 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <span className="text-[10px] font-bold text-slate-600">Largeur rouleau :</span>
+                      <select
+                        value={settings.receipt_thermal_width || '80'}
+                        onChange={(e) => setSettings({ ...settings, receipt_thermal_width: e.target.value })}
+                        className="px-2 py-1 text-xs font-bold rounded-lg border border-indigo-200 bg-white text-indigo-900"
+                      >
+                        <option value="80">80 mm (Standard Caisse)</option>
+                        <option value="58">58 mm (Mini / Mobile)</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {/* Option 2: Imprimante Standard A4 */}
+                <div
+                  onClick={() => setSettings({ ...settings, receipt_format: 'a4' })}
+                  className={`p-3.5 rounded-2xl border-2 cursor-pointer transition flex flex-col justify-between gap-2 ${
+                    settings.receipt_format === 'a4'
+                      ? 'border-indigo-600 bg-indigo-50/50 shadow-xs'
+                      : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100/60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-indigo-600" />
+                      <span className="font-bold text-xs text-slate-900">Imprimante Standard (A4)</span>
+                    </div>
+                    <input
+                      type="radio"
+                      name="receipt_format"
+                      checked={settings.receipt_format === 'a4'}
+                      onChange={() => setSettings({ ...settings, receipt_format: 'a4' })}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Facture commerciale officielle complète sur page A4 avec en-tête et tableau détaillé.
+                  </p>
+                  <span className="text-[10px] font-bold text-indigo-600">
+                    Format feuille A4 (Laser / Jet d'encre)
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-2 text-[11px] text-slate-500">
+                <span className="font-bold text-sm">💡</span>
+                <span>
+                  Lors de l'encaissement, vous pourrez également basculer instantanément entre Ticket thermique et Facture A4 selon la demande du client.
+                </span>
+              </div>
+            </div>
+
+            {/* COLONNE DROITE (50%) : TAILLE DES ÉTIQUETTES CODE-BARRES */}
+            <div className="space-y-4 pt-6 lg:pt-0 lg:pl-8">
+              <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0055b8] flex items-center justify-center font-bold flex-shrink-0">
+                  <Tag className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                    TAILLE DES ÉTIQUETTES CODE-BARRES
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    Configurez la taille selon le rouleau de votre imprimante d'étiquettes
+                  </p>
+                </div>
+              </div>
+
+              {/* Boutons Presets Rapides */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Formats standards rapides :
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { w: '45', h: '26', label: '45 × 26 mm (Standard)' },
+                    { w: '50', h: '30', label: '50 × 30 mm' },
+                    { w: '40', h: '30', label: '40 × 30 mm' },
+                    { w: '58', h: '40', label: '58 × 40 mm (Grand)' }
+                  ].map((preset) => {
+                    const isSelected =
+                      (settings.label_width || '45') === preset.w &&
+                      (settings.label_height || '26') === preset.h;
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            label_width: preset.w,
+                            label_height: preset.h
+                          })
+                        }
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                          isSelected
+                            ? 'bg-[#0055b8] text-white shadow-sm'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Saisie personnalisée */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    Largeur étiquette (mm) <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="20"
+                      max="120"
+                      required
+                      value={settings.label_width || '45'}
+                      onChange={(e) =>
+                        setSettings({ ...settings, label_width: e.target.value })
+                      }
+                      placeholder="45"
+                      className="w-full pl-3.5 pr-12 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-mono font-bold text-xs text-slate-900 focus:outline-none focus:border-[#0055b8]"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
+                      mm
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    Hauteur étiquette (mm) <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="15"
+                      max="120"
+                      required
+                      value={settings.label_height || '26'}
+                      onChange={(e) =>
+                        setSettings({ ...settings, label_height: e.target.value })
+                      }
+                      placeholder="26"
+                      className="w-full pl-3.5 pr-12 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-mono font-bold text-xs text-slate-900 focus:outline-none focus:border-[#0055b8]"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
+                      mm
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-blue-50/70 rounded-2xl border border-blue-100 flex items-start gap-2.5 text-[11px] text-blue-900 font-medium">
+                <span className="font-bold text-sm">💡</span>
+                <span>
+                  Taille active : <strong>{settings.label_width || '45'} × {settings.label_height || '26'} mm</strong>.
+                  Le contenu de l'étiquette (code-barres, nom et prix) s'adaptera automatiquement et proportionnellement à cette dimension lors de l'impression.
+                </span>
+              </div>
+            </div>
+
+          </div>
         </div>
 
         {/* 3. BOUTON D'ENREGISTREMENT GLOBAL */}

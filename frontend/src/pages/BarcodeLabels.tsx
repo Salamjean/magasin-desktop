@@ -187,6 +187,16 @@ export const BarcodeLabels: React.FC = () => {
 
     const isProductPriceOnly = labelFormat === 'product_price_only';
 
+    const labelWidth = Math.max(20, Math.min(150, parseInt(settings.label_width, 10) || 45));
+    const labelHeight = Math.max(15, Math.min(150, parseInt(settings.label_height, 10) || 26));
+    const scale = Math.max(0.65, Math.min(2.5, Math.min(labelWidth / 45, labelHeight / 26)));
+    const shelfPriceSize = Math.round(38 * scale);
+    const shelfCurSize = Math.round(11 * scale);
+    const shelfNameSize = Math.round(9.5 * scale * 10) / 10;
+    const shelfMetaSize = Math.round(7 * scale * 10) / 10;
+    const padV = Math.max(0.6, Math.min(3, Math.round(1 * (labelHeight / 26) * 10) / 10));
+    const padH = Math.max(0.8, Math.min(4, Math.round(1.5 * (labelWidth / 45) * 10) / 10));
+
     // Génération des éléments HTML des étiquettes
     const labelsHtml = selectedItems
       .flatMap((item) => {
@@ -204,7 +214,7 @@ export const BarcodeLabels: React.FC = () => {
             </div>
           `;
         } else {
-          // FORMAT ÉTIQUETTE DE RAYON (45x26mm) : Le montant prend TOUTE la place disponible en haut, Nom & Magasin en bas
+          // FORMAT ÉTIQUETTE DE RAYON DYNAMIQUE : Le montant prend TOUTE la place disponible en haut, Nom & Magasin en bas
           singleLabelHtml = `
             <div class="label-card shelf_label">
               <div class="big-price-center">
@@ -232,11 +242,11 @@ export const BarcodeLabels: React.FC = () => {
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>Impression ${labelFormat === 'shelf_label' ? 'Étiquettes de Rayon (45x26mm)' : 'Planche A4 Étiquettes Produit (Découpage)'} - ${storeName}</title>
+          <title>Impression ${labelFormat === 'shelf_label' ? `Étiquettes de Rayon (${labelWidth}x${labelHeight}mm)` : 'Planche A4 Étiquettes Produit (Découpage)'} - ${storeName}</title>
           <style>
             @page {
-              size: ${labelFormat === 'product_price_only' ? 'A4 portrait' : 'auto'};
-              margin: ${labelFormat === 'product_price_only' ? '6mm 6mm' : '1.5mm'};
+              size: ${labelFormat === 'product_price_only' ? 'A4 portrait' : `${labelWidth}mm ${labelHeight}mm`};
+              margin: ${labelFormat === 'product_price_only' ? '6mm 6mm' : '0'};
             }
             * {
               box-sizing: border-box;
@@ -267,13 +277,15 @@ export const BarcodeLabels: React.FC = () => {
               width: 100%;
             }
             
-            /* --- 1. FORMAT ÉTIQUETTE DE RAYON 45x26mm (LE MONTANT PREND TOUTE LA PLACE) --- */
+            /* --- 1. FORMAT ÉTIQUETTE DE RAYON DYNAMIQUE (LE MONTANT PREND TOUTE LA PLACE) --- */
             .label-card.shelf_label {
-              width: 45mm;
-              height: 26mm;
+              width: ${labelWidth}mm;
+              height: ${labelHeight}mm;
+              max-width: ${labelWidth}mm;
+              max-height: ${labelHeight}mm;
               border: 1px dashed #64748b;
               border-radius: 2px;
-              padding: 1mm 1.5mm 0.5mm 1.5mm;
+              padding: ${padV}mm ${padH}mm;
               display: flex;
               flex-direction: column;
               justify-content: space-between;
@@ -295,15 +307,15 @@ export const BarcodeLabels: React.FC = () => {
               line-height: 0.8;
             }
             .big-price-center .price-val {
-              font-size: 38px;
+              font-size: ${shelfPriceSize}px;
               font-weight: 900;
               color: #000;
               font-family: 'Arial Black', Impact, system-ui, -apple-system, sans-serif;
-              letter-spacing: -2px;
+              letter-spacing: -1.5px;
               line-height: 0.8;
             }
             .big-price-center .price-cur {
-              font-size: 11px;
+              font-size: ${shelfCurSize}px;
               font-weight: 900;
               color: #000;
               margin-left: 2px;
@@ -319,7 +331,7 @@ export const BarcodeLabels: React.FC = () => {
               margin-top: auto;
             }
             .product-name {
-              font-size: 9.5px;
+              font-size: ${shelfNameSize}px;
               font-weight: 900;
               color: #000;
               text-align: center;
@@ -333,7 +345,7 @@ export const BarcodeLabels: React.FC = () => {
               display: flex;
               justify-content: space-between;
               align-items: center;
-              font-size: 7px;
+              font-size: ${shelfMetaSize}px;
               font-weight: 800;
               color: #334155;
               line-height: 1;
@@ -445,7 +457,7 @@ export const BarcodeLabels: React.FC = () => {
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Générez et imprimez vos étiquettes de rayon (45x26mm) ou vos étiquettes de produit (seulement le prix).
+              Générez et imprimez vos étiquettes de rayon ({settings.label_width || '45'}×{settings.label_height || '26'} mm) ou vos étiquettes de produit (seulement le prix).
             </p>
           </div>
         </div>

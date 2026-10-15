@@ -11,6 +11,10 @@ export interface StoreSettings {
   currency: string;
   min_stock_alert: string;
   receipt_footer: string;
+  label_width: string;
+  label_height: string;
+  receipt_format: string;
+  receipt_thermal_width: string;
   [key: string]: string;
 }
 
@@ -23,7 +27,11 @@ export const defaultStoreSettings: StoreSettings = {
   company_logo: '',
   currency: 'FCFA',
   min_stock_alert: '10',
-  receipt_footer: 'Merci pour votre confiance et à très bientôt !'
+  receipt_footer: 'Merci pour votre confiance et à très bientôt !',
+  label_width: '45',
+  label_height: '26',
+  receipt_format: 'thermal',
+  receipt_thermal_width: '80'
 };
 
 interface SettingsContextType {

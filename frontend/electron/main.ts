@@ -196,14 +196,18 @@ ipcMain.handle('remote-db-sync-batch', async (_event, operations: Array<{ sql: s
   }
 });
 
-// Native Print Thermal Receipt
-ipcMain.handle('print-receipt', async (_event, _options) => {
+// Native Print Receipt (Thermique 80mm/58mm ou Facture A4)
+ipcMain.handle('print-receipt', async (_event, options?: { format?: string; width?: string; thermalWidth?: string }) => {
   if (!mainWindow) return { success: false, error: 'Fenêtre non trouvée' };
   try {
+    const isA4 = options?.format === 'a4';
+    const is58 = options?.width === '58' || options?.thermalWidth === '58';
+    const pageSize = isA4 ? 'A4' : { width: is58 ? 58000 : 80000, height: 297000 };
+
     mainWindow.webContents.print({
       silent: false,
       printBackground: true,
-      pageSize: { width: 80000, height: 297000 } // 80mm roll width representation
+      pageSize
     });
     return { success: true };
   } catch (err: any) {

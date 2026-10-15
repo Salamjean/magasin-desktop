@@ -1,45 +1,45 @@
-import { app as o, BrowserWindow as w, ipcMain as d, nativeImage as u } from "electron";
+import { app as a, BrowserWindow as _, ipcMain as d, nativeImage as u } from "electron";
 import i from "node:path";
 import l from "node:fs";
 import { fileURLToPath as v } from "node:url";
-import h from "mysql2/promise";
+import f from "mysql2/promise";
 const E = i.dirname(v(import.meta.url));
-o.commandLine.appendSwitch("disable-gpu");
-o.commandLine.appendSwitch("disable-gpu-compositing");
-o.commandLine.appendSwitch("disable-gpu-rasterization");
-o.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
-o.commandLine.appendSwitch("no-sandbox");
-o.isPackaged || o.setPath("userData", i.join(o.getPath("appData"), "gestmagasin-desktop-dev"));
+a.commandLine.appendSwitch("disable-gpu");
+a.commandLine.appendSwitch("disable-gpu-compositing");
+a.commandLine.appendSwitch("disable-gpu-rasterization");
+a.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
+a.commandLine.appendSwitch("no-sandbox");
+a.isPackaged || a.setPath("userData", i.join(a.getPath("appData"), "gestmagasin-desktop-dev"));
 process.env.DIST = i.join(E, "../dist");
-process.env.VITE_PUBLIC = o.isPackaged ? process.env.DIST : i.join(process.env.DIST, "../public");
-o.isPackaged && (o.requestSingleInstanceLock() ? o.on("second-instance", () => {
-  t && (t.isMinimized() && t.restore(), t.focus());
-}) : o.quit());
-let t = null;
-const m = process.env.VITE_DEV_SERVER_URL;
+process.env.VITE_PUBLIC = a.isPackaged ? process.env.DIST : i.join(process.env.DIST, "../public");
+a.isPackaged && (a.requestSingleInstanceLock() ? a.on("second-instance", () => {
+  n && (n.isMinimized() && n.restore(), n.focus());
+}) : a.quit());
+let n = null;
+const h = process.env.VITE_DEV_SERVER_URL;
 function b() {
   try {
-    const n = i.join(o.getPath("userData"), "branding.json");
-    if (l.existsSync(n))
-      return JSON.parse(l.readFileSync(n, "utf8"));
+    const r = i.join(a.getPath("userData"), "branding.json");
+    if (l.existsSync(r))
+      return JSON.parse(l.readFileSync(r, "utf8"));
   } catch {
   }
   return { name: "GestMagasin Pro" };
 }
-function _() {
-  const n = b(), r = i.join(process.env.VITE_PUBLIC, "logo.png");
+function w() {
+  const r = b(), t = i.join(process.env.VITE_PUBLIC, "logo.png");
   let e;
-  if (n.logo)
+  if (r.logo)
     try {
-      n.logo.startsWith("data:image") ? e = u.createFromDataURL(n.logo) : l.existsSync(n.logo) && (e = u.createFromPath(n.logo));
+      r.logo.startsWith("data:image") ? e = u.createFromDataURL(r.logo) : l.existsSync(r.logo) && (e = u.createFromPath(r.logo));
     } catch {
     }
-  !e && l.existsSync(r) && (e = u.createFromPath(r)), t = new w({
+  !e && l.existsSync(t) && (e = u.createFromPath(t)), n = new _({
     width: 1440,
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    title: n.name || "GestMagasin Pro",
+    title: r.name || "GestMagasin Pro",
     icon: e,
     backgroundColor: "#0055b8",
     webPreferences: {
@@ -52,29 +52,29 @@ function _() {
     show: !0
     // Afficher immédiatement
   }), (() => {
-    if (m)
-      t == null || t.loadURL(m);
+    if (h)
+      n == null || n.loadURL(h);
     else {
-      const a = i.join(process.env.DIST, "index.html");
-      t == null || t.loadFile(a);
+      const o = i.join(process.env.DIST, "index.html");
+      n == null || n.loadFile(o);
     }
-  })(), t.webContents.on("console-message", (a, c, g, p, T) => {
-    console.log(`[Renderer Console L${c}] ${g} (${T}:${p})`);
-  }), t.webContents.on("before-input-event", (a, c) => {
-    (c.key === "F12" || c.control && c.shift && c.key.toLowerCase() === "i") && (t == null || t.webContents.toggleDevTools(), a.preventDefault());
-  }), t.webContents.on("did-fail-load", (a, c, g, p) => {
-    console.error(`Erreur de chargement de ${p}: ${c} - ${g}`);
-  }), (!o.isPackaged || m) && t.webContents.openDevTools({ mode: "detach" });
+  })(), n.webContents.on("console-message", (o, c, g, m, T) => {
+    console.log(`[Renderer Console L${c}] ${g} (${T}:${m})`);
+  }), n.webContents.on("before-input-event", (o, c) => {
+    (c.key === "F12" || c.control && c.shift && c.key.toLowerCase() === "i") && (n == null || n.webContents.toggleDevTools(), o.preventDefault());
+  }), n.webContents.on("did-fail-load", (o, c, g, m) => {
+    console.error(`Erreur de chargement de ${m}: ${c} - ${g}`);
+  }), (!a.isPackaged || h) && n.webContents.openDevTools({ mode: "detach" });
 }
-o.whenReady().then(() => {
-  _(), o.on("activate", () => {
-    w.getAllWindows().length === 0 && _();
+a.whenReady().then(() => {
+  w(), a.on("activate", () => {
+    _.getAllWindows().length === 0 && w();
   });
 });
-o.on("window-all-closed", () => {
-  process.platform !== "darwin" && o.quit();
+a.on("window-all-closed", () => {
+  process.platform !== "darwin" && a.quit();
 });
-const f = {
+const p = {
   host: process.env.VITE_REMOTE_DB_HOST || "bnelboutique.com",
   port: Number(process.env.VITE_REMOTE_DB_PORT || "3306") || 3306,
   user: process.env.VITE_REMOTE_DB_USER || "magasin_user",
@@ -84,34 +84,34 @@ const f = {
 };
 d.handle("remote-db-ping", async () => {
   try {
-    const n = await h.createConnection(f);
-    return await n.ping(), await n.end(), { success: !0, message: "Connecté au serveur distant" };
-  } catch (n) {
-    return { success: !1, message: n.message || "Serveur distant inaccessible" };
+    const r = await f.createConnection(p);
+    return await r.ping(), await r.end(), { success: !0, message: "Connecté au serveur distant" };
+  } catch (r) {
+    return { success: !1, message: r.message || "Serveur distant inaccessible" };
   }
 });
-d.handle("remote-db-query", async (n, r, e = []) => {
+d.handle("remote-db-query", async (r, t, e = []) => {
   let s = null;
   try {
-    s = await h.createConnection(f);
-    const [a] = await s.execute(r, e);
-    return await s.end(), { success: !0, data: a };
-  } catch (a) {
+    s = await f.createConnection(p);
+    const [o] = await s.execute(t, e);
+    return await s.end(), { success: !0, data: o };
+  } catch (o) {
     if (s)
       try {
         await s.end();
       } catch {
       }
-    return { success: !1, error: a.message };
+    return { success: !1, error: o.message };
   }
 });
-d.handle("remote-db-sync-batch", async (n, r) => {
+d.handle("remote-db-sync-batch", async (r, t) => {
   let e = null;
   try {
-    e = await h.createConnection(f), await e.beginTransaction();
-    for (const s of r)
+    e = await f.createConnection(p), await e.beginTransaction();
+    for (const s of t)
       await e.execute(s.sql, s.params);
-    return await e.commit(), await e.end(), { success: !0, count: r.length };
+    return await e.commit(), await e.end(), { success: !0, count: t.length };
   } catch (s) {
     if (e)
       try {
@@ -121,30 +121,30 @@ d.handle("remote-db-sync-batch", async (n, r) => {
     return { success: !1, error: s.message };
   }
 });
-d.handle("print-receipt", async (n, r) => {
-  if (!t) return { success: !1, error: "Fenêtre non trouvée" };
+d.handle("print-receipt", async (r, t) => {
+  if (!n) return { success: !1, error: "Fenêtre non trouvée" };
   try {
-    return t.webContents.print({
+    const e = (t == null ? void 0 : t.format) === "a4", s = (t == null ? void 0 : t.width) === "58" || (t == null ? void 0 : t.thermalWidth) === "58", o = e ? "A4" : { width: s ? 58e3 : 8e4, height: 297e3 };
+    return n.webContents.print({
       silent: !1,
       printBackground: !0,
-      pageSize: { width: 8e4, height: 297e3 }
-      // 80mm roll width representation
+      pageSize: o
     }), { success: !0 };
   } catch (e) {
     return { success: !1, error: e.message };
   }
 });
-d.handle("update-app-branding", async (n, r) => {
-  if (r.name && t && t.setTitle(r.name), r.logo && t)
+d.handle("update-app-branding", async (r, t) => {
+  if (t.name && n && n.setTitle(t.name), t.logo && n)
     try {
       let e;
-      r.logo.startsWith("data:image") ? e = u.createFromDataURL(r.logo) : l.existsSync(r.logo) && (e = u.createFromPath(r.logo)), e && !e.isEmpty() && t.setIcon(e);
+      t.logo.startsWith("data:image") ? e = u.createFromDataURL(t.logo) : l.existsSync(t.logo) && (e = u.createFromPath(t.logo)), e && !e.isEmpty() && n.setIcon(e);
     } catch (e) {
       console.error("[Electron] Erreur mise à jour icône:", e);
     }
   try {
-    const e = i.join(o.getPath("userData"), "branding.json");
-    l.writeFileSync(e, JSON.stringify(r, null, 2), "utf8");
+    const e = i.join(a.getPath("userData"), "branding.json");
+    l.writeFileSync(e, JSON.stringify(t, null, 2), "utf8");
   } catch (e) {
     console.error("[Electron] Erreur sauvegarde branding:", e);
   }
