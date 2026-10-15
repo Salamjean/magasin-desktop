@@ -41,21 +41,26 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addToCart = (product: Product, quantity: number = 1) => {
     if (!product.id) return;
+    const maxStock = product.stock_quantity ?? 0;
     setItems(prev => {
       const existing = prev.find(item => item.product.id === product.id);
       if (existing) {
-        const newQty = existing.quantity + quantity;
+        let newQty = existing.quantity + quantity;
+        if (maxStock > 0 && newQty > maxStock) {
+          newQty = maxStock;
+        }
         return prev.map(item =>
           item.product.id === product.id
             ? { ...item, quantity: newQty, subtotal: newQty * item.unitPrice }
             : item
         );
       }
+      const initialQty = maxStock > 0 ? Math.min(quantity, maxStock) : quantity;
       return [...prev, {
         product,
-        quantity,
+        quantity: initialQty,
         unitPrice: product.selling_price,
-        subtotal: quantity * product.selling_price
+        subtotal: initialQty * product.selling_price
       }];
     });
   };
@@ -66,11 +71,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     setItems(prev =>
-      prev.map(item =>
-        item.product.id === productId
-          ? { ...item, quantity, subtotal: quantity * item.unitPrice }
-          : item
-      )
+      prev.map(item => {
+        if (item.product.id !== productId) return item;
+        const maxStock = item.product.stock_quantity ?? 0;
+        const safeQty = maxStock > 0 ? Math.min(quantity, maxStock) : quantity;
+        return { ...item, quantity: safeQty, subtotal: safeQty * item.unitPrice };
+      })
     );
   };
 

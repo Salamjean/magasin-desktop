@@ -29,6 +29,187 @@ import Swal from 'sweetalert2';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { CashOpeningDeclaration } from '../components/CashOpeningDeclaration';
 import { CashSession } from '../db/db';
+// Son de confirmation du scanner (Bip TPV synthétisé sans fichier externe)
+const playScanBeep = () => {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1350, ctx.currentTime);
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.09);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.09);
+  } catch (e) {
+    // Ignorer si audio bloqué par le navigateur
+  }
+};
+
+// Son d'alerte seuil de stock atteint ou saisie invalide
+const playAlertBeep = () => {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(620, ctx.currentTime);
+    osc.frequency.setValueAtTime(440, ctx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.28);
+  } catch (e) {
+    // Ignorer si audio bloqué
+  }
+};
+
+interface CartQuantityInputProps {
+  quantity: number;
+  maxStock: number;
+  productName: string;
+  unit?: string;
+  onUpdate: (newQty: number) => void;
+}
+
+const CartQuantityInput: React.FC<CartQuantityInputProps> = ({
+  quantity,
+  maxStock,
+  productName,
+  unit,
+  onUpdate
+}) => {
+  const [val, setVal] = useState<string>(String(quantity));
+
+  useEffect(() => {
+    setVal(String(quantity));
+  }, [quantity]);
+
+  const commitValue = (targetVal: number) => {
+    setVal(String(targetVal));
+    onUpdate(targetVal);
+  };
+
+  const notifyInvalidMin = () => {
+    playAlertBeep();
+    Swal.fire({
+      icon: 'warning',
+      title: 'Quantité minimale',
+      html: `
+        <div style="background: #fff1f2; border: 2px solid #fecdd3; border-radius: 16px; padding: 16px 20px; margin: 8px 0 4px 0;">
+          <div style="font-size: 12px; font-weight: 800; color: #be123c; letter-spacing: 0.06em; text-transform: uppercase;">Quantité minimale</div>
+          <div style="font-size: 60px; font-weight: 900; color: #e11d48; line-height: 1; margin: 8px 0;">1</div>
+        </div>
+      `,
+      confirmButtonColor: '#0055b8',
+      confirmButtonText: 'D’accord',
+      allowOutsideClick: false
+    });
+    commitValue(1);
+  };
+
+  const notifyExceedStock = (_enteredQty: number) => {
+    playAlertBeep();
+    const adjusted = Math.max(1, maxStock);
+    Swal.fire({
+      icon: 'warning',
+      title: 'Stock insuffisant',
+      html: `
+        <p style="font-size: 15px; font-weight: 700; color: #1e293b; margin: 0 0 10px 0;">${productName}</p>
+        <div style="background: #eff6ff; border: 2px solid #bfdbfe; border-radius: 16px; padding: 16px 20px; margin: 8px 0 4px 0;">
+          <div style="font-size: 12px; font-weight: 800; color: #64748b; letter-spacing: 0.06em; text-transform: uppercase;">Stock disponible</div>
+          <div style="font-size: 60px; font-weight: 900; color: #0055b8; line-height: 1; margin: 8px 0;">${maxStock}</div>
+          <div style="font-size: 14px; font-weight: 700; color: #3b82f6;">${unit || 'unités'}</div>
+        </div>
+      `,
+      confirmButtonColor: '#0055b8',
+      confirmButtonText: 'D’accord',
+      allowOutsideClick: false
+    });
+    commitValue(adjusted);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setVal(raw);
+
+    // Si le champ est vidé temporairement pour retaper un nombre, on attend la saisie
+    if (raw.trim() === '') {
+      return;
+    }
+
+    const parsed = parseInt(raw, 10);
+    if (isNaN(parsed)) {
+      return;
+    }
+
+    // Alerte immédiate si nombre inférieur à 1
+    if (parsed < 1) {
+      notifyInvalidMin();
+      return;
+    }
+
+    // Alerte immédiate si nombre supérieur au stock disponible
+    if (parsed > maxStock) {
+      notifyExceedStock(parsed);
+      return;
+    }
+
+    // Quantité valide
+    onUpdate(parsed);
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const raw = e.target.value.trim();
+    if (raw === '') {
+      notifyInvalidMin();
+      return;
+    }
+
+    const parsed = parseInt(raw, 10);
+    if (isNaN(parsed) || parsed < 1) {
+      notifyInvalidMin();
+      return;
+    }
+
+    if (parsed > maxStock) {
+      notifyExceedStock(parsed);
+      return;
+    }
+
+    commitValue(parsed);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      (e.target as HTMLElement).blur();
+    }
+  };
+
+  return (
+    <input
+      type="number"
+      min="1"
+      max={maxStock}
+      step="1"
+      value={val}
+      onFocus={(e) => e.target.select()}
+      onChange={handleInputChange}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      className="w-10 sm:w-12 text-center font-black text-xs text-slate-800 bg-transparent border-none outline-none p-0 focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none cursor-text select-all"
+      title={`Stock disponible : ${maxStock} ${unit || 'unités'}. Cliquez pour saisir directement.`}
+    />
+  );
+};
 
 export const Pos: React.FC = () => {
   const navigate = useNavigate();
@@ -109,50 +290,56 @@ export const Pos: React.FC = () => {
 
   const lastScanTimeRef = useRef<number>(0);
 
-  // Son de confirmation du scanner (Bip TPV synthétisé sans fichier externe)
-  const playScanBeep = () => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(1350, ctx.currentTime);
-      gain.gain.setValueAtTime(0.12, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.09);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.09);
-    } catch (e) {
-      // Ignorer si audio bloqué par le navigateur
+  const handleAddToCart = (product: Product, qtyToAdd: number = 1): boolean => {
+    const maxStock = product.stock_quantity ?? 0;
+    if (maxStock <= 0) {
+      playAlertBeep();
+      Swal.fire({
+        icon: 'warning',
+        title: 'Rupture de stock',
+        html: `
+          <p style="font-size: 15px; font-weight: 700; color: #1e293b; margin: 0 0 10px 0;">${product.name}</p>
+          <div style="background: #fff1f2; border: 2px solid #fecdd3; border-radius: 16px; padding: 16px 20px; margin: 8px 0 4px 0;">
+            <div style="font-size: 12px; font-weight: 800; color: #be123c; letter-spacing: 0.06em; text-transform: uppercase;">Stock disponible</div>
+            <div style="font-size: 60px; font-weight: 900; color: #e11d48; line-height: 1; margin: 8px 0;">0</div>
+            <div style="font-size: 13px; font-weight: 700; color: #e11d48; margin-top: 4px;">Rupture de stock</div>
+          </div>
+        `,
+        confirmButtonColor: '#0055b8',
+        confirmButtonText: 'D’accord',
+        allowOutsideClick: false
+      });
+      return false;
     }
+
+    const existing = items.find(item => item.product.id === product.id);
+    const currentQty = existing ? existing.quantity : 0;
+
+    if (currentQty + qtyToAdd > maxStock) {
+      playAlertBeep();
+      Swal.fire({
+        icon: 'warning',
+        title: 'Stock insuffisant',
+        html: `
+          <p style="font-size: 15px; font-weight: 700; color: #1e293b; margin: 0 0 10px 0;">${product.name}</p>
+          <div style="background: #eff6ff; border: 2px solid #bfdbfe; border-radius: 16px; padding: 16px 20px; margin: 8px 0 4px 0;">
+            <div style="font-size: 12px; font-weight: 800; color: #64748b; letter-spacing: 0.06em; text-transform: uppercase;">Stock disponible</div>
+            <div style="font-size: 60px; font-weight: 900; color: #0055b8; line-height: 1; margin: 8px 0;">${maxStock}</div>
+            <div style="font-size: 14px; font-weight: 700; color: #3b82f6;">${product.unit || 'unités'}</div>
+          </div>
+        `,
+        confirmButtonColor: '#0055b8',
+        confirmButtonText: 'D’accord',
+        allowOutsideClick: false
+      });
+      return false;
+    }
+
+    addToCart(product, qtyToAdd);
+    return true;
   };
 
-  // Son d'alerte seuil de stock atteint
-  const playAlertBeep = () => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(620, ctx.currentTime);
-      osc.frequency.setValueAtTime(440, ctx.currentTime + 0.12);
-      gain.gain.setValueAtTime(0.18, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.28);
-    } catch (e) {
-      // Ignorer si audio bloqué
-    }
-  };
-
-  // Traitement du scan avec délai de sécurité de 1 seconde (1000ms)
+  // Traitement du scan avec délai de sécurité de 1 seconde (1000ms) et contrôle de stock
   const processBarcodeScan = async (rawCode: string): Promise<boolean> => {
     const code = rawCode.trim();
     if (!code) return false;
@@ -163,13 +350,32 @@ export const Pos: React.FC = () => {
       return false;
     }
 
-    const found = await scanBarcode(code);
-    if (found) {
-      lastScanTimeRef.current = Date.now();
-      playScanBeep();
-      setBarcodeInput('');
-      setSearchQuery('');
-      return true;
+    // 1. Recherche directe par code-barres ou référence dans Dexie
+    let product = await db.products.where('barcode').equals(code).first();
+    if (!product) {
+      product = await db.products.where('reference').equals(code).first();
+    }
+    if (!product) {
+      const allProds = await db.products.toArray();
+      const cleanLower = code.toLowerCase();
+      product = allProds.find(p => {
+        const pBarcode = (p.barcode || '').toString().trim().toLowerCase();
+        const pRef = (p.reference || '').toString().trim().toLowerCase();
+        const pName = (p.name || '').toString().trim().toLowerCase();
+        return pBarcode === cleanLower || pRef === cleanLower || pName === cleanLower;
+      });
+    }
+
+    if (product) {
+      const added = handleAddToCart(product, 1);
+      if (added) {
+        lastScanTimeRef.current = Date.now();
+        playScanBeep();
+        setBarcodeInput('');
+        setSearchQuery('');
+        return true;
+      }
+      return false;
     } else {
       Swal.fire({
         icon: 'warning',
@@ -255,10 +461,12 @@ export const Pos: React.FC = () => {
       if (filteredProducts.length === 1) {
         const now = Date.now();
         if (now - lastScanTimeRef.current >= 1000) {
-          lastScanTimeRef.current = now;
-          addToCart(filteredProducts[0], 1);
-          playScanBeep();
-          setSearchQuery('');
+          const added = handleAddToCart(filteredProducts[0], 1);
+          if (added) {
+            lastScanTimeRef.current = now;
+            playScanBeep();
+            setSearchQuery('');
+          }
         }
       }
     }
@@ -681,7 +889,7 @@ export const Pos: React.FC = () => {
                   <button
                     key={product.id}
                     disabled={isOutOfStock}
-                    onClick={() => addToCart(product, 1)}
+                    onClick={() => handleAddToCart(product, 1)}
                     className={`rounded-xl text-left border flex flex-col justify-between transition-all duration-150 active:scale-95 group overflow-hidden bg-white shadow-xs ${
                       isOutOfStock
                         ? 'border-slate-200 opacity-50 cursor-not-allowed'
@@ -832,34 +1040,85 @@ export const Pos: React.FC = () => {
                 </p>
               </div>
 
-              {/* Quantity Stepper */}
-              <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-slate-200 shadow-sm">
+              {/* Quantity Stepper (+, - et saisie directe) */}
+              <div className="flex items-center gap-1 bg-white px-1.5 py-1 rounded-xl border border-slate-200 shadow-2xs hover:border-[#0055b8]/50 focus-within:border-[#0055b8] focus-within:ring-1 focus-within:ring-[#0055b8]/20 transition">
                 <button
-                  onClick={() => updateQuantity(item.product.id!, item.quantity - 1)}
-                  className="p-1 text-slate-500 hover:text-slate-800 rounded hover:bg-slate-100"
+                  type="button"
+                  onClick={() => {
+                    if (item.quantity <= 1) {
+                      playAlertBeep();
+                      Swal.fire({
+                        icon: 'warning',
+                        title: 'Quantité minimale',
+                        html: `
+                          <div style="background: #fff1f2; border: 2px solid #fecdd3; border-radius: 16px; padding: 16px 20px; margin: 8px 0 4px 0;">
+                            <div style="font-size: 12px; font-weight: 800; color: #be123c; letter-spacing: 0.06em; text-transform: uppercase;">Quantité minimale</div>
+                            <div style="font-size: 60px; font-weight: 900; color: #e11d48; line-height: 1; margin: 8px 0;">1</div>
+                          </div>
+                        `,
+                        confirmButtonColor: '#0055b8',
+                        confirmButtonText: 'D’accord',
+                        allowOutsideClick: false
+                      });
+                      return;
+                    }
+                    updateQuantity(item.product.id!, item.quantity - 1);
+                  }}
+                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition active:scale-90"
+                  title="Diminuer la quantité"
                 >
-                  <Minus className="w-3 h-3" />
+                  <Minus className="w-3 h-3 stroke-[2.5]" />
                 </button>
-                <span className="text-xs font-black w-6 text-center text-slate-800">
-                  {item.quantity}
-                </span>
+                <CartQuantityInput
+                  quantity={item.quantity}
+                  maxStock={item.product.stock_quantity ?? 0}
+                  productName={item.product.name}
+                  unit={item.product.unit}
+                  onUpdate={(newQty) => updateQuantity(item.product.id!, newQty)}
+                />
                 <button
-                  onClick={() => updateQuantity(item.product.id!, item.quantity + 1)}
-                  className="p-1 text-slate-500 hover:text-slate-800 rounded hover:bg-slate-100"
+                  type="button"
+                  onClick={() => {
+                    const maxStock = item.product.stock_quantity ?? 0;
+                    if (item.quantity >= maxStock) {
+                      playAlertBeep();
+                      Swal.fire({
+                        icon: 'warning',
+                        title: 'Stock insuffisant',
+                        html: `
+                          <p style="font-size: 15px; font-weight: 700; color: #1e293b; margin: 0 0 10px 0;">${item.product.name}</p>
+                          <div style="background: #eff6ff; border: 2px solid #bfdbfe; border-radius: 16px; padding: 16px 20px; margin: 8px 0 4px 0;">
+                            <div style="font-size: 12px; font-weight: 800; color: #64748b; letter-spacing: 0.06em; text-transform: uppercase;">Stock disponible</div>
+                            <div style="font-size: 60px; font-weight: 900; color: #0055b8; line-height: 1; margin: 8px 0;">${maxStock}</div>
+                            <div style="font-size: 14px; font-weight: 700; color: #3b82f6;">${item.product.unit || 'unités'}</div>
+                          </div>
+                        `,
+                        confirmButtonColor: '#0055b8',
+                        confirmButtonText: 'D’accord',
+                        allowOutsideClick: false
+                      });
+                      return;
+                    }
+                    updateQuantity(item.product.id!, item.quantity + 1);
+                  }}
+                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition active:scale-90"
+                  title="Augmenter la quantité"
                 >
-                  <Plus className="w-3 h-3" />
+                  <Plus className="w-3 h-3 stroke-[2.5]" />
                 </button>
               </div>
 
-              <div className="text-right">
-                <p className="font-black text-xs text-slate-900">
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="font-black text-xs text-slate-900 whitespace-nowrap">
                   {item.subtotal.toLocaleString('fr-FR')} F
-                </p>
+                </span>
                 <button
+                  type="button"
                   onClick={() => removeFromCart(item.product.id!)}
-                  className="text-[10px] text-rose-500 hover:text-rose-700"
+                  className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition active:scale-90"
+                  title="Supprimer du panier"
                 >
-                  <Trash2 className="w-3 h-3 inline" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
