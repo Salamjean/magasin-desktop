@@ -33,6 +33,32 @@ function toMySQLDate(dateStr) {
         return new Date().toISOString().slice(0, 10);
     }
 }
+const MYSQL_INT_MAX = 2147483647;
+const MYSQL_INT_MIN = -2147483648;
+// Borne une valeur aux limites d'une colonne INT MySQL (évite ER_WARN_DATA_OUT_OF_RANGE)
+function toSafeInt(value, fallback = 0) {
+    const n = Math.trunc(Number(value));
+    if (!Number.isFinite(n))
+        return fallback;
+    return Math.min(MYSQL_INT_MAX, Math.max(MYSQL_INT_MIN, n));
+}
+function isOutOfIntRange(value) {
+    const n = Number(value);
+    return Number.isFinite(n) && (n > MYSQL_INT_MAX || n < MYSQL_INT_MIN);
+}
+// Renvoie une valeur unique pour une colonne UNIQUE de products si elle est déjà prise par un autre produit
+async function resolveUniqueProductValue(conn, column, value, productId) {
+    const base = String(value ?? '').trim() || `${column === 'reference' ? 'ART' : 'BC'}-${Date.now()}`;
+    let candidate = base;
+    let attempt = 0;
+    while (true) {
+        const [rows] = await conn.execute(`SELECT id FROM products WHERE \`${column}\` = ? AND (? IS NULL OR id <> ?) LIMIT 1`, [candidate, productId, productId]);
+        if (!rows || rows.length === 0)
+            return candidate;
+        attempt++;
+        candidate = `${base}-${productId ?? Date.now()}${attempt > 1 ? `-${attempt}` : ''}`;
+    }
+}
 // Récupération complète de toutes les tables MySQL (PULL)
 export const syncPullAll = async (req, res) => {
     try {
@@ -217,14 +243,23 @@ export const syncPush = async (req, res) => {
         if (tables.products && Array.isArray(tables.products)) {
             for (const p of tables.products) {
                 const isActive = p.is_active === false || p.is_active === 0 || p.is_active === '0' || p.is_active === 'false' ? 0 : 1;
-                if (p.id) {
+                const productId = p.id ? Number(p.id) : null;
+                // Référence / code-barres déjà utilisés par un autre produit : on les rend uniques au lieu de bloquer toute la synchro
+                const reference = await resolveUniqueProductValue(conn, 'reference', p.reference, productId);
+                const barcode = await resolveUniqueProductValue(conn, 'barcode', p.barcode, productId);
+                if (reference !== String(p.reference ?? '').trim() || barcode !== String(p.barcode ?? '').trim()) {
+                    console.warn(`syncPush: produit #${productId ?? 'nouveau'} "${p.name}" en conflit, référence ${p.reference} -> ${reference}, code-barres ${p.barcode} -> ${barcode}`);
+                }
+                const stockQuantity = toSafeInt(p.stock_quantity, 0);
+                const minStock = toSafeInt(p.min_stock || 5, 5);
+                if (productId) {
                     await conn.execute(`INSERT INTO products (id, name, reference, barcode, category_id, purchase_price, selling_price, stock_quantity, min_stock, unit, image, is_active, synced)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-             ON DUPLICATE KEY UPDATE name = VALUES(name), reference = VALUES(reference), barcode = VALUES(barcode), category_id = VALUES(category_id), purchase_price = VALUES(purchase_price), selling_price = VALUES(selling_price), stock_quantity = VALUES(stock_quantity), min_stock = VALUES(min_stock), unit = VALUES(unit), image = VALUES(image), is_active = VALUES(is_active), synced = 1`, [p.id, p.name, p.reference, p.barcode, p.category_id || null, p.purchase_price || 0, p.selling_price || 0, p.stock_quantity || 0, p.min_stock || 5, p.unit || 'pièce', p.image || null, isActive]);
+             ON DUPLICATE KEY UPDATE name = VALUES(name), reference = VALUES(reference), barcode = VALUES(barcode), category_id = VALUES(category_id), purchase_price = VALUES(purchase_price), selling_price = VALUES(selling_price), stock_quantity = VALUES(stock_quantity), min_stock = VALUES(min_stock), unit = VALUES(unit), image = VALUES(image), is_active = VALUES(is_active), synced = 1`, [productId, p.name, reference, barcode, p.category_id || null, p.purchase_price || 0, p.selling_price || 0, stockQuantity, minStock, p.unit || 'pièce', p.image || null, isActive]);
                 }
                 else {
                     await conn.execute(`INSERT INTO products (name, reference, barcode, category_id, purchase_price, selling_price, stock_quantity, min_stock, unit, image, is_active, synced)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`, [p.name, p.reference, p.barcode, p.category_id || null, p.purchase_price || 0, p.selling_price || 0, p.stock_quantity || 0, p.min_stock || 5, p.unit || 'pièce', p.image || null, isActive]);
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`, [p.name, reference, barcode, p.category_id || null, p.purchase_price || 0, p.selling_price || 0, stockQuantity, minStock, p.unit || 'pièce', p.image || null, isActive]);
                 }
             }
         }
@@ -282,11 +317,11 @@ export const syncPush = async (req, res) => {
                 if (item.id) {
                     await conn.execute(`INSERT INTO sale_items (id, sale_id, product_id, product_name, quantity, unit_price, subtotal, synced)
              VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-             ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), unit_price = VALUES(unit_price), subtotal = VALUES(subtotal), synced = 1`, [item.id, item.sale_id, item.product_id, item.product_name, item.quantity || 1, item.unit_price || 0, subtotal]);
+             ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), unit_price = VALUES(unit_price), subtotal = VALUES(subtotal), synced = 1`, [item.id, item.sale_id, item.product_id, item.product_name, toSafeInt(item.quantity || 1, 1), item.unit_price || 0, subtotal]);
                 }
                 else {
                     await conn.execute(`INSERT INTO sale_items (sale_id, product_id, product_name, quantity, unit_price, subtotal, synced)
-             VALUES (?, ?, ?, ?, ?, ?, 1)`, [item.sale_id, item.product_id, item.product_name, item.quantity || 1, item.unit_price || 0, subtotal]);
+             VALUES (?, ?, ?, ?, ?, ?, 1)`, [item.sale_id, item.product_id, item.product_name, toSafeInt(item.quantity || 1, 1), item.unit_price || 0, subtotal]);
                 }
             }
         }
@@ -294,14 +329,21 @@ export const syncPush = async (req, res) => {
         if (tables.stock_movements && Array.isArray(tables.stock_movements)) {
             for (const sm of tables.stock_movements) {
                 const moveDate = toMySQLDateTime(sm.created_at);
+                const quantity = toSafeInt(sm.quantity, 0);
+                let reason = String(sm.reason || 'Ajustement');
+                if (isOutOfIntRange(sm.quantity)) {
+                    // Quantité aberrante (ex : code-barres saisi dans le champ quantité) : conservée dans le motif pour vérification
+                    console.warn(`syncPush: mouvement de stock #${sm.id ?? 'nouveau'} quantité hors limite (${sm.quantity}), bornée à ${quantity}`);
+                    reason = `${reason} [quantité invalide: ${sm.quantity}]`.slice(0, 255);
+                }
                 if (sm.id) {
                     await conn.execute(`INSERT INTO stock_movements (id, product_id, type, quantity, reference, reason, user_id, created_at, synced)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-             ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), reason = VALUES(reason), synced = 1`, [sm.id, sm.product_id, sm.type || 'adjustment', sm.quantity, sm.reference || `MVT-${sm.id}`, sm.reason || 'Ajustement', sm.user_id || 1, moveDate]);
+             ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), reason = VALUES(reason), synced = 1`, [sm.id, sm.product_id, sm.type || 'adjustment', quantity, sm.reference || `MVT-${sm.id}`, reason, sm.user_id || 1, moveDate]);
                 }
                 else {
                     await conn.execute(`INSERT INTO stock_movements (product_id, type, quantity, reference, reason, user_id, created_at, synced)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 1)`, [sm.product_id, sm.type || 'adjustment', sm.quantity, sm.reference || `MVT-${Date.now()}`, sm.reason || 'Ajustement', sm.user_id || 1, moveDate]);
+             VALUES (?, ?, ?, ?, ?, ?, ?, 1)`, [sm.product_id, sm.type || 'adjustment', quantity, sm.reference || `MVT-${Date.now()}`, reason, sm.user_id || 1, moveDate]);
                 }
             }
         }
@@ -341,11 +383,11 @@ export const syncPush = async (req, res) => {
                 if (pi.id) {
                     await conn.execute(`INSERT INTO purchase_items (id, purchase_id, product_id, quantity, unit_price, subtotal, synced)
              VALUES (?, ?, ?, ?, ?, ?, 1)
-             ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), unit_price = VALUES(unit_price), subtotal = VALUES(subtotal), synced = 1`, [pi.id, pi.purchase_id, pi.product_id, pi.quantity, pi.unit_price, pi.subtotal]);
+             ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), unit_price = VALUES(unit_price), subtotal = VALUES(subtotal), synced = 1`, [pi.id, pi.purchase_id, pi.product_id, toSafeInt(pi.quantity, 0), pi.unit_price, pi.subtotal]);
                 }
                 else {
                     await conn.execute(`INSERT INTO purchase_items (purchase_id, product_id, quantity, unit_price, subtotal, synced)
-             VALUES (?, ?, ?, ?, ?, 1)`, [pi.purchase_id, pi.product_id, pi.quantity, pi.unit_price, pi.subtotal]);
+             VALUES (?, ?, ?, ?, ?, 1)`, [pi.purchase_id, pi.product_id, toSafeInt(pi.quantity, 0), pi.unit_price, pi.subtotal]);
                 }
             }
         }
@@ -369,11 +411,11 @@ export const syncPush = async (req, res) => {
                 if (ii.id) {
                     await conn.execute(`INSERT INTO inventory_items (id, inventory_id, product_id, theoretical_quantity, real_quantity, difference, cost_variance, synced)
              VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-             ON DUPLICATE KEY UPDATE real_quantity = VALUES(real_quantity), difference = VALUES(difference), cost_variance = VALUES(cost_variance), synced = 1`, [ii.id, ii.inventory_id, ii.product_id, ii.theoretical_quantity || 0, ii.real_quantity || 0, ii.difference || 0, ii.cost_variance || 0]);
+             ON DUPLICATE KEY UPDATE real_quantity = VALUES(real_quantity), difference = VALUES(difference), cost_variance = VALUES(cost_variance), synced = 1`, [ii.id, ii.inventory_id, ii.product_id, toSafeInt(ii.theoretical_quantity, 0), toSafeInt(ii.real_quantity, 0), toSafeInt(ii.difference, 0), ii.cost_variance || 0]);
                 }
                 else {
                     await conn.execute(`INSERT INTO inventory_items (inventory_id, product_id, theoretical_quantity, real_quantity, difference, cost_variance, synced)
-             VALUES (?, ?, ?, ?, ?, 1)`, [ii.inventory_id, ii.product_id, ii.theoretical_quantity || 0, ii.real_quantity || 0, ii.difference || 0, ii.cost_variance || 0]);
+             VALUES (?, ?, ?, ?, ?, 1)`, [ii.inventory_id, ii.product_id, toSafeInt(ii.theoretical_quantity, 0), toSafeInt(ii.real_quantity, 0), toSafeInt(ii.difference, 0), ii.cost_variance || 0]);
                 }
             }
         }

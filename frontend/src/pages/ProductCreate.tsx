@@ -103,7 +103,7 @@ export const ProductCreate: React.FC = () => {
     setFormData((prev) => ({
       ...prev,
       barcode: trimmed,
-      reference: prev.reference || `ART-${Math.floor(1000 + Math.random() * 9000)}`
+      reference: prev.reference || `ART-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 36).toString(36).toUpperCase()}`
     }));
     setIsManualBarcode(false);
     setStep('form');
@@ -112,7 +112,7 @@ export const ProductCreate: React.FC = () => {
   // Action : Choisir la saisie manuelle avec génération du code-barres en arrière-plan
   const handleChooseManual = () => {
     const randomBarcode = `618${Math.floor(1000000000 + Math.random() * 9000000000)}`;
-    const randomRef = `ART-${Math.floor(1000 + Math.random() * 9000)}`;
+    const randomRef = `ART-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 36).toString(36).toUpperCase()}`;
 
     setFormData((prev) => ({
       ...prev,
