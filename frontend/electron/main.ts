@@ -197,11 +197,34 @@ ipcMain.handle('remote-db-sync-batch', async (_event, operations: Array<{ sql: s
 });
 
 // Native Print Receipt (Thermique 80mm/58mm ou Facture A4)
-ipcMain.handle('print-receipt', async (_event, options?: { format?: string; width?: string; thermalWidth?: string }) => {
+ipcMain.handle('print-receipt', async (_event, options?: { format?: string; width?: string; thermalWidth?: string; heightMm?: number; html?: string }) => {
   if (!mainWindow) return { success: false, error: 'Fenêtre non trouvée' };
   try {
     const isA4 = options?.format === 'a4';
     const is58 = options?.width === '58' || options?.thermalWidth === '58';
+
+    // Ticket thermique : impression du ticket seul dans une fenêtre cachée,
+    // sur une page aussi haute que le ticket (sinon les tickets longs sont coupés)
+    if (!isA4 && options?.html) {
+      const heightMm = options.heightMm && options.heightMm > 50 ? options.heightMm : 297;
+      // Fichier temporaire plutôt qu'une URL data: (le logo en base64 peut dépasser la limite de taille)
+      const tmpFile = path.join(app.getPath('temp'), `ticket-${Date.now()}.html`);
+      fs.writeFileSync(tmpFile, options.html, 'utf8');
+      const printWindow = new BrowserWindow({ show: false, webPreferences: { javascript: false } });
+      printWindow.on('closed', () => fs.rmSync(tmpFile, { force: true }));
+      await printWindow.loadFile(tmpFile);
+      printWindow.webContents.print(
+        {
+          silent: false,
+          printBackground: true,
+          pageSize: { width: is58 ? 58000 : 80000, height: Math.round(heightMm * 1000) },
+          margins: { marginType: 'none' }
+        },
+        () => printWindow.close()
+      );
+      return { success: true };
+    }
+
     const pageSize = isA4 ? 'A4' : { width: is58 ? 58000 : 80000, height: 297000 };
 
     mainWindow.webContents.print({

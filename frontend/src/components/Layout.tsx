@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
@@ -32,7 +32,15 @@ export const Layout: React.FC = () => {
 
         {/* Dynamic Route Content avec espacement bas confortable pour le web mobile et desktop */}
         <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pb-24 sm:pb-20 md:px-5 md:pb-12 bg-transparent">
-          <Outlet />
+          <Suspense
+            fallback={
+              <div className="w-full py-20 flex items-center justify-center">
+                <div className="w-8 h-8 border-4 border-[#0055b8] border-t-transparent rounded-full animate-spin" />
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

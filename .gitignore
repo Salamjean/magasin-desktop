@@ -8,4 +8,5 @@ node_modules
 .env
 DEPLOIEMENT_SCRIPTS.txt
 deploy.bat
+deploy-web-only.bat
 deploy-with-reset-db.bat

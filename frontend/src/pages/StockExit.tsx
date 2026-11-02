@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, Product, Category } from '../db/db';
 import { useAuth } from '../context/AuthContext';
+import { SearchableProductSelect } from '../components/SearchableProductSelect';
 import {
   ArrowUp,
   ArrowLeft,
@@ -159,27 +160,19 @@ export const StockExit: React.FC = () => {
             </div>
           </div>
 
-          {/* Select Produit */}
+          {/* Select Produit avec recherche intégrée */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-700">
               Choisir le produit à déstocker <span className="text-rose-500">*</span>
             </label>
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <select
-                value={selectedProductId}
-                onChange={(e) => setSelectedProductId(e.target.value)}
-                required
-                className="w-full pl-10 pr-8 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-rose-500 focus:bg-white transition appearance-none cursor-pointer"
-              >
-                <option value="">Sélectionnez un produit en stock</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} — (Réf: {p.reference} • Stock dispo: {p.stock_quantity} {p.unit})
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SearchableProductSelect
+              products={products}
+              value={selectedProductId}
+              onChange={(id) => setSelectedProductId(id ? String(id) : '')}
+              placeholder="Rechercher ou sélectionner un produit en stock..."
+              accentColor="rose"
+              badgeType="stock"
+            />
           </div>
 
           {/* Fiche d'état actuel de l'article */}

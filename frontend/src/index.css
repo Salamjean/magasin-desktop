@@ -46,20 +46,20 @@
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  /* Mode Thermique 80mm */
+  /* Mode Thermique 80mm : zone imprimable réelle de 72mm sur les imprimantes POS-80 */
   #printable-receipt.receipt-80mm,
   #printable-receipt:not(.receipt-58mm):not(.receipt-a4) {
-    width: 80mm;
-    max-width: 80mm;
-    padding: 6mm 4mm;
-    font-size: 11px;
+    width: 72mm;
+    max-width: 72mm;
+    padding: 2mm 2mm 6mm;
+    box-shadow: none;
   }
-  /* Mode Thermique 58mm */
+  /* Mode Thermique 58mm : zone imprimable réelle de 48mm */
   #printable-receipt.receipt-58mm {
-    width: 58mm;
-    max-width: 58mm;
-    padding: 3mm 2mm;
-    font-size: 9.5px;
+    width: 48mm;
+    max-width: 48mm;
+    padding: 1mm 1mm 5mm;
+    box-shadow: none;
   }
   /* Mode Facture Grand Format A4 */
   #printable-receipt.receipt-a4 {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, Supplier, Product } from '../db/db';
 import { useAuth } from '../context/AuthContext';
+import { SearchableProductSelect } from '../components/SearchableProductSelect';
 import { ArrowLeft, Plus, Trash2, Calendar, ChevronDown } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -269,28 +270,17 @@ export const PurchaseCreate: React.FC = () => {
                   {/* PRODUIT */}
                   <div className="md:col-span-6">
                     <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-                      Produit
+                      Produit <span className="text-rose-500">*</span>
                     </label>
-                    <div className="relative">
-                      <select
-                        required
-                        value={it.productId}
-                        onChange={(e) =>
-                          handleProductChange(idx, e.target.value ? Number(e.target.value) : '')
-                        }
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50/70 border border-slate-200 text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:border-[#0055b8] transition appearance-none cursor-pointer pr-10"
-                      >
-                        <option value="">Choisir un produit</option>
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} {p.purchase_price ? `(${p.purchase_price.toLocaleString('fr-FR')} F)` : ''}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
-                        <ChevronDown className="w-4 h-4" />
-                      </div>
-                    </div>
+                    <SearchableProductSelect
+                      products={products}
+                      value={it.productId}
+                      onChange={(pId) => handleProductChange(idx, pId)}
+                      placeholder="Choisir un produit à commander..."
+                      buttonClassName="px-3.5 py-2.5 rounded-xl bg-slate-50/70 border border-slate-200 text-xs font-semibold text-slate-900"
+                      accentColor="blue"
+                      badgeType="purchase_price"
+                    />
                   </div>
 
                   {/* QUANTITÉ COMMANDÉE */}

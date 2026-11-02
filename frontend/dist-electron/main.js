@@ -1,49 +1,49 @@
-import { app as a, BrowserWindow as _, ipcMain as d, nativeImage as u } from "electron";
+import { app as r, BrowserWindow as f, ipcMain as g, nativeImage as h } from "electron";
 import i from "node:path";
-import l from "node:fs";
-import { fileURLToPath as v } from "node:url";
-import f from "mysql2/promise";
-const E = i.dirname(v(import.meta.url));
-a.commandLine.appendSwitch("disable-gpu");
-a.commandLine.appendSwitch("disable-gpu-compositing");
-a.commandLine.appendSwitch("disable-gpu-rasterization");
-a.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
-a.commandLine.appendSwitch("no-sandbox");
-a.isPackaged || a.setPath("userData", i.join(a.getPath("appData"), "gestmagasin-desktop-dev"));
-process.env.DIST = i.join(E, "../dist");
-process.env.VITE_PUBLIC = a.isPackaged ? process.env.DIST : i.join(process.env.DIST, "../public");
-a.isPackaged && (a.requestSingleInstanceLock() ? a.on("second-instance", () => {
+import d from "node:fs";
+import { fileURLToPath as T } from "node:url";
+import p from "mysql2/promise";
+const b = i.dirname(T(import.meta.url));
+r.commandLine.appendSwitch("disable-gpu");
+r.commandLine.appendSwitch("disable-gpu-compositing");
+r.commandLine.appendSwitch("disable-gpu-rasterization");
+r.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
+r.commandLine.appendSwitch("no-sandbox");
+r.isPackaged || r.setPath("userData", i.join(r.getPath("appData"), "gestmagasin-desktop-dev"));
+process.env.DIST = i.join(b, "../dist");
+process.env.VITE_PUBLIC = r.isPackaged ? process.env.DIST : i.join(process.env.DIST, "../public");
+r.isPackaged && (r.requestSingleInstanceLock() ? r.on("second-instance", () => {
   n && (n.isMinimized() && n.restore(), n.focus());
-}) : a.quit());
+}) : r.quit());
 let n = null;
-const h = process.env.VITE_DEV_SERVER_URL;
-function b() {
+const m = process.env.VITE_DEV_SERVER_URL;
+function E() {
   try {
-    const r = i.join(a.getPath("userData"), "branding.json");
-    if (l.existsSync(r))
-      return JSON.parse(l.readFileSync(r, "utf8"));
+    const a = i.join(r.getPath("userData"), "branding.json");
+    if (d.existsSync(a))
+      return JSON.parse(d.readFileSync(a, "utf8"));
   } catch {
   }
   return { name: "GestMagasin Pro" };
 }
-function w() {
-  const r = b(), t = i.join(process.env.VITE_PUBLIC, "logo.png");
-  let e;
-  if (r.logo)
+function _() {
+  const a = E(), e = i.join(process.env.VITE_PUBLIC, "logo.png");
+  let t;
+  if (a.logo)
     try {
-      r.logo.startsWith("data:image") ? e = u.createFromDataURL(r.logo) : l.existsSync(r.logo) && (e = u.createFromPath(r.logo));
+      a.logo.startsWith("data:image") ? t = h.createFromDataURL(a.logo) : d.existsSync(a.logo) && (t = h.createFromPath(a.logo));
     } catch {
     }
-  !e && l.existsSync(t) && (e = u.createFromPath(t)), n = new _({
+  !t && d.existsSync(e) && (t = h.createFromPath(e)), n = new f({
     width: 1440,
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    title: r.name || "GestMagasin Pro",
-    icon: e,
+    title: a.name || "GestMagasin Pro",
+    icon: t,
     backgroundColor: "#0055b8",
     webPreferences: {
-      preload: i.join(E, "preload.cjs"),
+      preload: i.join(b, "preload.cjs"),
       nodeIntegration: !1,
       contextIsolation: !0,
       webSecurity: !1
@@ -52,29 +52,29 @@ function w() {
     show: !0
     // Afficher immédiatement
   }), (() => {
-    if (h)
-      n == null || n.loadURL(h);
+    if (m)
+      n == null || n.loadURL(m);
     else {
-      const o = i.join(process.env.DIST, "index.html");
-      n == null || n.loadFile(o);
+      const c = i.join(process.env.DIST, "index.html");
+      n == null || n.loadFile(c);
     }
-  })(), n.webContents.on("console-message", (o, c, g, m, T) => {
-    console.log(`[Renderer Console L${c}] ${g} (${T}:${m})`);
-  }), n.webContents.on("before-input-event", (o, c) => {
-    (c.key === "F12" || c.control && c.shift && c.key.toLowerCase() === "i") && (n == null || n.webContents.toggleDevTools(), o.preventDefault());
-  }), n.webContents.on("did-fail-load", (o, c, g, m) => {
-    console.error(`Erreur de chargement de ${m}: ${c} - ${g}`);
-  }), (!a.isPackaged || h) && n.webContents.openDevTools({ mode: "detach" });
+  })(), n.webContents.on("console-message", (c, o, u, l, y) => {
+    console.log(`[Renderer Console L${o}] ${u} (${y}:${l})`);
+  }), n.webContents.on("before-input-event", (c, o) => {
+    (o.key === "F12" || o.control && o.shift && o.key.toLowerCase() === "i") && (n == null || n.webContents.toggleDevTools(), c.preventDefault());
+  }), n.webContents.on("did-fail-load", (c, o, u, l) => {
+    console.error(`Erreur de chargement de ${l}: ${o} - ${u}`);
+  }), (!r.isPackaged || m) && n.webContents.openDevTools({ mode: "detach" });
 }
-a.whenReady().then(() => {
-  w(), a.on("activate", () => {
-    _.getAllWindows().length === 0 && w();
+r.whenReady().then(() => {
+  _(), r.on("activate", () => {
+    f.getAllWindows().length === 0 && _();
   });
 });
-a.on("window-all-closed", () => {
-  process.platform !== "darwin" && a.quit();
+r.on("window-all-closed", () => {
+  process.platform !== "darwin" && r.quit();
 });
-const p = {
+const w = {
   host: process.env.VITE_REMOTE_DB_HOST || "bnelboutique.com",
   port: Number(process.env.VITE_REMOTE_DB_PORT || "3306") || 3306,
   user: process.env.VITE_REMOTE_DB_USER || "magasin_user",
@@ -82,72 +82,87 @@ const p = {
   database: process.env.VITE_REMOTE_DB_NAME || "magasin_db",
   connectTimeout: Number(process.env.VITE_REMOTE_DB_TIMEOUT || "5000") || 5e3
 };
-d.handle("remote-db-ping", async () => {
+g.handle("remote-db-ping", async () => {
   try {
-    const r = await f.createConnection(p);
-    return await r.ping(), await r.end(), { success: !0, message: "Connecté au serveur distant" };
-  } catch (r) {
-    return { success: !1, message: r.message || "Serveur distant inaccessible" };
+    const a = await p.createConnection(w);
+    return await a.ping(), await a.end(), { success: !0, message: "Connecté au serveur distant" };
+  } catch (a) {
+    return { success: !1, message: a.message || "Serveur distant inaccessible" };
   }
 });
-d.handle("remote-db-query", async (r, t, e = []) => {
+g.handle("remote-db-query", async (a, e, t = []) => {
   let s = null;
   try {
-    s = await f.createConnection(p);
-    const [o] = await s.execute(t, e);
-    return await s.end(), { success: !0, data: o };
-  } catch (o) {
+    s = await p.createConnection(w);
+    const [c] = await s.execute(e, t);
+    return await s.end(), { success: !0, data: c };
+  } catch (c) {
     if (s)
       try {
         await s.end();
       } catch {
       }
-    return { success: !1, error: o.message };
+    return { success: !1, error: c.message };
   }
 });
-d.handle("remote-db-sync-batch", async (r, t) => {
-  let e = null;
+g.handle("remote-db-sync-batch", async (a, e) => {
+  let t = null;
   try {
-    e = await f.createConnection(p), await e.beginTransaction();
-    for (const s of t)
-      await e.execute(s.sql, s.params);
-    return await e.commit(), await e.end(), { success: !0, count: t.length };
+    t = await p.createConnection(w), await t.beginTransaction();
+    for (const s of e)
+      await t.execute(s.sql, s.params);
+    return await t.commit(), await t.end(), { success: !0, count: e.length };
   } catch (s) {
-    if (e)
+    if (t)
       try {
-        await e.rollback(), await e.end();
+        await t.rollback(), await t.end();
       } catch {
       }
     return { success: !1, error: s.message };
   }
 });
-d.handle("print-receipt", async (r, t) => {
+g.handle("print-receipt", async (a, e) => {
   if (!n) return { success: !1, error: "Fenêtre non trouvée" };
   try {
-    const e = (t == null ? void 0 : t.format) === "a4", s = (t == null ? void 0 : t.width) === "58" || (t == null ? void 0 : t.thermalWidth) === "58", o = e ? "A4" : { width: s ? 58e3 : 8e4, height: 297e3 };
+    const t = (e == null ? void 0 : e.format) === "a4", s = (e == null ? void 0 : e.width) === "58" || (e == null ? void 0 : e.thermalWidth) === "58";
+    if (!t && (e != null && e.html)) {
+      const o = e.heightMm && e.heightMm > 50 ? e.heightMm : 297, u = i.join(r.getPath("temp"), `ticket-${Date.now()}.html`);
+      d.writeFileSync(u, e.html, "utf8");
+      const l = new f({ show: !1, webPreferences: { javascript: !1 } });
+      return l.on("closed", () => d.rmSync(u, { force: !0 })), await l.loadFile(u), l.webContents.print(
+        {
+          silent: !1,
+          printBackground: !0,
+          pageSize: { width: s ? 58e3 : 8e4, height: Math.round(o * 1e3) },
+          margins: { marginType: "none" }
+        },
+        () => l.close()
+      ), { success: !0 };
+    }
+    const c = t ? "A4" : { width: s ? 58e3 : 8e4, height: 297e3 };
     return n.webContents.print({
       silent: !1,
       printBackground: !0,
-      pageSize: o
+      pageSize: c
     }), { success: !0 };
-  } catch (e) {
-    return { success: !1, error: e.message };
+  } catch (t) {
+    return { success: !1, error: t.message };
   }
 });
-d.handle("update-app-branding", async (r, t) => {
-  if (t.name && n && n.setTitle(t.name), t.logo && n)
+g.handle("update-app-branding", async (a, e) => {
+  if (e.name && n && n.setTitle(e.name), e.logo && n)
     try {
-      let e;
-      t.logo.startsWith("data:image") ? e = u.createFromDataURL(t.logo) : l.existsSync(t.logo) && (e = u.createFromPath(t.logo)), e && !e.isEmpty() && n.setIcon(e);
-    } catch (e) {
-      console.error("[Electron] Erreur mise à jour icône:", e);
+      let t;
+      e.logo.startsWith("data:image") ? t = h.createFromDataURL(e.logo) : d.existsSync(e.logo) && (t = h.createFromPath(e.logo)), t && !t.isEmpty() && n.setIcon(t);
+    } catch (t) {
+      console.error("[Electron] Erreur mise à jour icône:", t);
     }
   try {
-    const e = i.join(a.getPath("userData"), "branding.json");
-    l.writeFileSync(e, JSON.stringify(t, null, 2), "utf8");
-  } catch (e) {
-    console.error("[Electron] Erreur sauvegarde branding:", e);
+    const t = i.join(r.getPath("userData"), "branding.json");
+    d.writeFileSync(t, JSON.stringify(e, null, 2), "utf8");
+  } catch (t) {
+    console.error("[Electron] Erreur sauvegarde branding:", t);
   }
   return { success: !0 };
 });
-d.handle("get-app-branding", async () => b());
+g.handle("get-app-branding", async () => E());

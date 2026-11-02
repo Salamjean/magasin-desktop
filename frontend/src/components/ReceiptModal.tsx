@@ -55,10 +55,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           const is58 = selectedThermalWidth === '58';
           JsBarcode(barcodeThermalRef.current, sale.invoice_number, {
             format: 'CODE128',
-            width: is58 ? 1.05 : 1.35,
-            height: is58 ? 26 : 34,
+            width: is58 ? 1.2 : 1.6,
+            height: is58 ? 32 : 42,
             displayValue: true,
-            fontSize: is58 ? 8.5 : 9.5,
+            fontSize: is58 ? 10 : 12,
             textMargin: 1,
             margin: 0
           });
@@ -85,9 +85,83 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     return () => clearTimeout(timer);
   }, [isOpen, sale, selectedFormat, selectedThermalWidth]);
 
+  // Fermeture avec la touche Échap
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !sale) return null;
 
+  // Ticket thermique : imprimé seul dans un document dédié, sur une page aussi haute que le ticket.
+  // Imprimé depuis le pop-up (position fixe), le navigateur coupait tout ce qui dépassait la 1re page.
+  const printThermalReceipt = async () => {
+    const receiptEl = document.getElementById('printable-receipt');
+    if (!receiptEl) return;
+
+    const is58 = selectedThermalWidth === '58';
+    const pageWidthMm = is58 ? 58 : 80;
+    // Ticket centré sur la page : marges gauche/droite identiques, contenu = zone imprimable (72mm ou 48mm)
+    const contentWidthMm = is58 ? 50 : 74;
+    const padding = is58 ? '1mm 1mm 5mm' : '2mm 1mm 6mm';
+
+    const baseHtml = `<!doctype html><html><head><meta charset="utf-8"><style>
+      html, body { margin: 0; padding: 0; background: #fff; }
+      * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { width: ${pageWidthMm}mm; }
+      #printable-receipt { width: ${contentWidthMm}mm; padding: ${padding}; margin: 0 auto; box-shadow: none; border: 0; border-radius: 0; }
+      svg { max-width: 100%; height: auto; }
+    </style>`;
+
+    // Mesure de la hauteur réelle du ticket dans un iframe invisible à la largeur du papier
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${pageWidthMm}mm;height:100px;border:0;`;
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument!;
+    doc.open();
+    doc.write(`${baseHtml}</head><body>${receiptEl.outerHTML}</body></html>`);
+    doc.close();
+
+    await Promise.all(
+      Array.from(doc.images).map((img) =>
+        img.complete ? Promise.resolve() : new Promise((resolve) => { img.onload = img.onerror = resolve; })
+      )
+    );
+
+    const printedEl = doc.getElementById('printable-receipt');
+    const heightMm = Math.ceil(((printedEl?.scrollHeight || 1000) * 25.4) / 96) + 8;
+    const pageStyle = `<style>@page { size: ${pageWidthMm}mm ${heightMm}mm; margin: 0; }</style>`;
+
+    if (window.electronAPI) {
+      document.body.removeChild(iframe);
+      await window.electronAPI.printReceipt({
+        format: 'thermal',
+        width: selectedThermalWidth,
+        thermalWidth: selectedThermalWidth,
+        heightMm,
+        html: `${baseHtml}${pageStyle}</head><body>${receiptEl.outerHTML}</body></html>`
+      });
+      return;
+    }
+
+    doc.head.insertAdjacentHTML('beforeend', pageStyle);
+    iframe.contentWindow!.focus();
+    iframe.contentWindow!.print();
+    setTimeout(() => iframe.remove(), 1000);
+  };
+
   const handlePrint = async () => {
+    if (selectedFormat === 'thermal') {
+      await printThermalReceipt();
+      return;
+    }
+
     // Injecter dynamiquement la règle @page pour que l'imprimante utilise la taille exacte
     let styleEl = document.getElementById('receipt-dynamic-page-style') as HTMLStyleElement | null;
     if (!styleEl) {
@@ -96,20 +170,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       document.head.appendChild(styleEl);
     }
 
-    if (selectedFormat === 'a4') {
-      styleEl.textContent = `@page { size: A4 portrait; margin: 8mm; }`;
-    } else if (selectedThermalWidth === '58') {
-      styleEl.textContent = `@page { size: 58mm auto; margin: 0; }`;
-    } else {
-      styleEl.textContent = `@page { size: 80mm auto; margin: 0; }`;
-    }
+    styleEl.textContent = `@page { size: A4 portrait; margin: 8mm; }`;
 
     if (window.electronAPI) {
-      await window.electronAPI.printReceipt({
-        format: selectedFormat,
-        width: selectedThermalWidth,
-        thermalWidth: selectedThermalWidth
-      });
+      await window.electronAPI.printReceipt({ format: 'a4' });
     } else {
       window.print();
     }
@@ -147,102 +211,111 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
   const is58mm = selectedThermalWidth === '58';
 
+  // Ticket thermique : noir pur et tailles généreuses (le gris et la couleur ressortent pâles sur papier thermique)
+  const t = is58mm
+    ? { title: '16px', heading: '12px', base: '11px', small: '10.5px', total: '15px' }
+    : { title: '20px', heading: '14px', base: '12.5px', small: '11.5px', total: '19px' };
+  const thermalRow: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: '8px' };
+  // Colonnes des articles : retrait | Qté | P.U. | Montant (chiffres alignés à droite)
+  const thermalItemGrid: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: is58mm ? '1fr 24px 50px 56px' : '1fr 34px 72px 80px',
+    columnGap: '4px',
+    fontVariantNumeric: 'tabular-nums'
+  };
+  const thermalSeparator: React.CSSProperties = { borderTop: '1.5px dashed #000', margin: is58mm ? '7px 0' : '9px 0' };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/65 backdrop-blur-sm p-2 sm:p-4 animate-in fade-in duration-150">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-2 sm:p-4 animate-in fade-in duration-150"
+      onClick={onClose}
+    >
       <div
-        className={`bg-white rounded-3xl shadow-2xl w-full overflow-hidden flex flex-col max-h-[94dvh] sm:max-h-[92vh] border border-slate-100 transition-all duration-200 ${
-          selectedFormat === 'a4' ? 'max-w-4xl' : 'max-w-md'
+        onClick={(e) => e.stopPropagation()}
+        className={`bg-white rounded-3xl shadow-2xl w-full overflow-hidden flex flex-col max-h-[94dvh] sm:max-h-[92vh] ring-1 ring-black/5 transition-all duration-200 animate-in zoom-in-95 ${
+          selectedFormat === 'a4' ? 'max-w-4xl' : 'max-w-[440px]'
         }`}
       >
-        {/* Header Actions & Format Switcher */}
-        <div className="px-5 py-3.5 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-3 border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center">
-              <Printer className="w-4 h-4" />
+        {/* En-tête : confirmation de la vente */}
+        <div className="px-5 pt-5 pb-4 flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100 flex items-center justify-center shrink-0">
+              <CheckCircle className="w-6 h-6" />
             </div>
-            <div>
-              <h3 className="font-black text-sm tracking-tight">
-                {selectedFormat === 'a4' ? 'Facture Commerciale A4' : `Ticket Thermique ${selectedThermalWidth}mm`}
-              </h3>
-              <p className="text-[10px] text-slate-400 font-medium">
-                {selectedFormat === 'a4' ? 'Format standard bureau / laser' : 'Imprimante rouleau thermique caisse'}
+            <div className="min-w-0">
+              <h3 className="font-extrabold text-[15px] text-slate-900 tracking-tight">Imprimer le reçu</h3>
+              <p className="text-xs text-slate-500 truncate">
+                N° <span className="font-semibold text-slate-700">{sale.invoice_number}</span>
+                <span className="mx-1.5 text-slate-300">•</span>
+                <span className="font-bold text-slate-900">
+                  {sale.total_amount.toLocaleString('fr-FR')} {currency}
+                </span>
               </p>
             </div>
           </div>
-
-          {/* Switch Format : Thermique vs A4 */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700/80">
-              <button
-                type="button"
-                onClick={() => setSelectedFormat('thermal')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition ${
-                  selectedFormat === 'thermal'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title="Format Ticket Caisse Thermique"
-              >
-                <Receipt className="w-3.5 h-3.5" />
-                <span>Ticket</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedFormat('a4')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition ${
-                  selectedFormat === 'a4'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title="Format Facture Pleine Page A4"
-              >
-                <FileText className="w-3.5 h-3.5" />
-                <span>Facture A4</span>
-              </button>
-            </div>
-
-            {/* Sélecteur de largeur si thermique (80mm / 58mm) */}
-            {selectedFormat === 'thermal' && (
-              <div className="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700/80">
-                <button
-                  type="button"
-                  onClick={() => setSelectedThermalWidth('80')}
-                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition ${
-                    selectedThermalWidth === '80'
-                      ? 'bg-slate-700 text-white'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                  title="Rouleau standard 80 mm"
-                >
-                  80mm
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedThermalWidth('58')}
-                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition ${
-                    selectedThermalWidth === '58'
-                      ? 'bg-slate-700 text-white'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                  title="Rouleau compact 58 mm"
-                >
-                  58mm
-                </button>
-              </div>
-            )}
-
-            <button
-              onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white rounded-full hover:bg-slate-800 transition ml-1"
-              title="Fermer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 -mr-1 -mt-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition"
+            title="Fermer (Échap)"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* Modal Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100 flex justify-center">
+        {/* Choix du format */}
+        <div className="px-5 pb-4 flex flex-wrap items-center gap-2">
+          <div className="flex-1 min-w-[200px] grid grid-cols-2 bg-slate-100 p-1 rounded-2xl">
+            <button
+              type="button"
+              onClick={() => setSelectedFormat('thermal')}
+              className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition ${
+                selectedFormat === 'thermal'
+                  ? 'bg-white text-[#0055b8] shadow-sm ring-1 ring-slate-200'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Receipt className="w-4 h-4" />
+              <span>Ticket caisse</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedFormat('a4')}
+              className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition ${
+                selectedFormat === 'a4'
+                  ? 'bg-white text-[#0055b8] shadow-sm ring-1 ring-slate-200'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              <span>Facture A4</span>
+            </button>
+          </div>
+
+          {/* Largeur du rouleau (80mm / 58mm) */}
+          {selectedFormat === 'thermal' && (
+            <div className="flex bg-slate-100 p-1 rounded-2xl">
+              {(['80', '58'] as const).map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setSelectedThermalWidth(w)}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition ${
+                    selectedThermalWidth === w
+                      ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  title={w === '80' ? 'Rouleau standard 80 mm' : 'Rouleau compact 58 mm'}
+                >
+                  {w} mm
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Aperçu du document */}
+        <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 bg-slate-100 border-y border-slate-200/80 flex justify-center items-start bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px]">
           
           {/* ========================================================
               OPTION 1 : FORMAT TICKET THERMIQUE (80mm ou 58mm)
@@ -250,172 +323,166 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           {selectedFormat === 'thermal' && (
             <div
               id="printable-receipt"
-              className={`invoice-card thermal-receipt p-4 shadow-sm ${
-                is58mm ? 'receipt-58mm w-[250px]' : 'receipt-80mm w-[320px]'
+              className={`invoice-card thermal-receipt shadow-xl shadow-slate-400/30 ring-1 ring-slate-200 rounded-sm ${
+                is58mm ? 'receipt-58mm w-[189px] px-1 py-3' : 'receipt-80mm w-[280px] px-1 py-4'
               }`}
               style={{
                 fontFamily: 'Arial, Helvetica, sans-serif',
+                fontSize: t.base,
+                lineHeight: 1.35,
                 color: '#000',
-                background: '#fff',
-                borderTop: '4px solid #0055b8'
+                background: '#fff'
               }}
             >
-              {/* En-tête ticket */}
-              <div style={{ textAlign: 'center', marginBottom: is58mm ? '10px' : '14px' }}>
+              {/* En-tête magasin */}
+              <div style={{ textAlign: 'center' }}>
                 {currentSettings.company_logo && (
-                  <div style={{ textAlign: 'center', marginBottom: '6px' }}>
-                    <img
-                      src={currentSettings.company_logo}
-                      alt={storeName}
-                      style={{
-                        maxHeight: is58mm ? '40px' : '55px',
-                        maxWidth: is58mm ? '120px' : '160px',
-                        objectFit: 'contain',
-                        margin: '0 auto'
-                      }}
-                    />
-                  </div>
+                  <img
+                    src={currentSettings.company_logo}
+                    alt={storeName}
+                    style={{
+                      display: 'block',
+                      maxHeight: is58mm ? '45px' : '60px',
+                      maxWidth: '70%',
+                      objectFit: 'contain',
+                      margin: '0 auto 6px',
+                      filter: 'grayscale(1) contrast(1.6)'
+                    }}
+                  />
                 )}
-                <p style={{ margin: 0, fontSize: is58mm ? '14px' : '17px', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                <div style={{ fontSize: t.title, fontWeight: 900, textTransform: 'uppercase', lineHeight: 1.15 }}>
                   {storeName}
-                </p>
-                <p style={{ margin: '4px 0', fontSize: is58mm ? '9px' : '10.5px', color: '#222', lineHeight: '1.3' }}>
-                  {storeAddress}
-                  <br />
-                  Tél: {storePhone}
-                  {storeEmail && (
-                    <>
-                      <br />
-                      Email: {storeEmail}
-                    </>
-                  )}
-                  {storeNif && (
-                    <>
-                      <br />
-                      NIF/RCCM: {storeNif}
-                    </>
-                  )}
-                </p>
-
-                <div style={{ borderBottom: '1px dashed #000', margin: is58mm ? '6px 0' : '9px 0' }}></div>
-
-                <div style={{ fontSize: is58mm ? '9px' : '10.5px', textAlign: 'left', lineHeight: '1.4' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>REF:</span>
-                    <strong style={{ fontFamily: 'monospace' }}>#{sale.invoice_number}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Date:</span>
-                    <span>{formatDateTime(sale.created_at)}</span>
-                  </div>
-                  {customer && customer.name && customer.name !== 'Client Comptoir Standard' && customer.name !== 'Client Standard' && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Client:</span>
-                      <strong>{customer.name}</strong>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Caissier:</span>
-                    <span>{user ? user.name : '—'}</span>
-                  </div>
                 </div>
+                <div style={{ marginTop: '3px', fontSize: t.small }}>{storeAddress}</div>
+                <div style={{ fontSize: t.small }}>Tél : {storePhone}</div>
               </div>
 
-              {/* Tableau des articles thermique */}
-              <table
-                style={{
-                  width: '100%',
-                  fontSize: is58mm ? '9.5px' : '11px',
-                  borderCollapse: 'collapse',
-                  fontFamily: 'Arial, Helvetica, sans-serif'
-                }}
-              >
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #000' }}>
-                    <th style={{ textAlign: 'left', padding: '4px 0', fontWeight: 'bold' }}>Article</th>
-                    <th style={{ textAlign: 'center', padding: '4px 0', fontWeight: 'bold' }}>Qté</th>
-                    <th style={{ textAlign: 'right', padding: '4px 0', fontWeight: 'bold' }}>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item, idx) => (
-                    <tr key={idx} style={{ borderBottom: '0.5px solid #eee' }}>
-                      <td style={{ textAlign: 'left', padding: is58mm ? '3px 0' : '4px 0', wordBreak: 'break-word', maxWidth: is58mm ? '120px' : '160px' }}>
-                        {item.product_name || 'Produit'}
-                      </td>
-                      <td style={{ textAlign: 'center', padding: is58mm ? '3px 0' : '4px 0' }}>{item.quantity}</td>
-                      <td style={{ textAlign: 'right', padding: is58mm ? '3px 0' : '4px 0', fontWeight: 'bold' }}>
-                        {item.subtotal.toLocaleString('fr-FR')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div style={thermalSeparator} />
 
-              {/* Totaux thermique */}
+              {/* Titre & informations de la vente */}
+              <div style={{ textAlign: 'center', fontWeight: 900, fontSize: t.heading, letterSpacing: '1px', marginBottom: '5px' }}>
+                TICKET DE CAISSE
+              </div>
+              <div style={thermalRow}>
+                <span>N° ticket</span>
+                <strong>{sale.invoice_number}</strong>
+              </div>
+              <div style={thermalRow}>
+                <span>Date</span>
+                <span>{formatDateTime(sale.created_at)}</span>
+              </div>
+              <div style={thermalRow}>
+                <span>Caissier</span>
+                <span>{user ? user.name : '—'}</span>
+              </div>
+              {customer && customer.name && customer.name !== 'Client Comptoir Standard' && customer.name !== 'Client Standard' && (
+                <div style={thermalRow}>
+                  <span>Client</span>
+                  <strong>{customer.name}</strong>
+                </div>
+              )}
+
+              <div style={thermalSeparator} />
+
+              {/* Articles : en-tête de colonnes puis, pour chaque article, le nom puis Qté / P.U. / Montant alignés */}
               <div
                 style={{
-                  borderTop: '1px dashed #000',
-                  margin: is58mm ? '10px 0' : '14px 0',
-                  paddingTop: is58mm ? '6px' : '8px',
-                  fontSize: is58mm ? '10px' : '11px'
+                  ...thermalItemGrid,
+                  fontWeight: 900,
+                  fontSize: t.small,
+                  paddingBottom: '3px',
+                  borderBottom: '1.5px solid #000'
                 }}
               >
+                <span>{is58mm ? 'Art.' : 'Article'}</span>
+                <span style={{ textAlign: 'center' }}>Qté</span>
+                <span style={{ textAlign: 'right' }}>P.U.</span>
+                <span style={{ textAlign: 'right' }}>Montant</span>
+              </div>
+
+              {items.map((item, idx) => {
+                const unitPrice =
+                  item.unit_price ||
+                  (item.quantity > 0 ? Math.round(item.subtotal / item.quantity) : item.subtotal);
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: '4px 0',
+                      borderBottom: idx < items.length - 1 ? '1px dotted #000' : 'none'
+                    }}
+                  >
+                    <div style={{ fontWeight: 'bold', wordBreak: 'break-word' }}>
+                      {idx + 1}. {item.product_name || 'Produit'}
+                    </div>
+                    <div style={thermalItemGrid}>
+                      <span />
+                      <span style={{ textAlign: 'center' }}>{item.quantity}</span>
+                      <span style={{ textAlign: 'right' }}>{unitPrice.toLocaleString('fr-FR')}</span>
+                      <strong style={{ textAlign: 'right' }}>{item.subtotal.toLocaleString('fr-FR')}</strong>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div style={{ borderTop: '1.5px solid #000', marginTop: '2px', paddingTop: '6px' }}>
+                <div style={thermalRow}>
+                  <span>Nombre d'articles</span>
+                  <strong>{items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}</strong>
+                </div>
                 {sale.discount_amount > 0 && (
                   <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                      <span>Sous-total:</span>
+                    <div style={thermalRow}>
+                      <span>Sous-total</span>
                       <span>{sale.subtotal.toLocaleString('fr-FR')} {currency}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', color: '#b91c1c' }}>
-                      <span>Remise:</span>
-                      <span>-{sale.discount_amount.toLocaleString('fr-FR')} {currency}</span>
+                    <div style={thermalRow}>
+                      <span>Remise</span>
+                      <strong>- {sale.discount_amount.toLocaleString('fr-FR')} {currency}</strong>
                     </div>
                   </>
                 )}
-
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: is58mm ? '13px' : '15px',
-                    fontWeight: 'bold',
-                    margin: '4px 0',
-                    padding: '3px 0',
-                    borderTop: '1px solid #000',
-                    borderBottom: '1px solid #000'
-                  }}
-                >
-                  <span>TOTAL:</span>
-                  <span>{sale.total_amount.toLocaleString('fr-FR')} {currency}</span>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
-                  <span>Paiement:</span>
-                  <span>{getPaymentLabel(sale.payment_method)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Reçu:</span>
-                  <span>{sale.paid_amount.toLocaleString('fr-FR')} {currency}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Rendu:</span>
-                  <span>{sale.change_amount.toLocaleString('fr-FR')} {currency}</span>
-                </div>
               </div>
 
-              {/* Code-barres & Pied de ticket */}
+              {/* Total à payer */}
               <div
                 style={{
-                  textAlign: 'center',
-                  marginTop: is58mm ? '12px' : '16px',
-                  fontSize: is58mm ? '9px' : '10px'
+                  ...thermalRow,
+                  alignItems: 'center',
+                  margin: '7px 0',
+                  padding: is58mm ? '5px 6px' : '7px 8px',
+                  background: '#000',
+                  color: '#fff',
+                  fontSize: t.total,
+                  fontWeight: 900
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
-                  <svg ref={barcodeThermalRef}></svg>
+                <span>TOTAL</span>
+                <span>{sale.total_amount.toLocaleString('fr-FR')} {currency}</span>
+              </div>
+
+              {/* Règlement */}
+              <div style={thermalRow}>
+                <span>Mode de paiement</span>
+                <strong>{getPaymentLabel(sale.payment_method)}</strong>
+              </div>
+              <div style={thermalRow}>
+                <span>Montant reçu</span>
+                <span>{sale.paid_amount.toLocaleString('fr-FR')} {currency}</span>
+              </div>
+              <div style={thermalRow}>
+                <span>Monnaie rendue</span>
+                <strong>{sale.change_amount.toLocaleString('fr-FR')} {currency}</strong>
+              </div>
+
+              <div style={thermalSeparator} />
+
+              {/* Pied de ticket : message puis code-barres */}
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>{receiptFooter}</div>
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <svg ref={barcodeThermalRef} style={{ maxWidth: '100%' }}></svg>
                 </div>
-                <p style={{ margin: '4px 0', lineHeight: '1.4' }}>{receiptFooter}</p>
               </div>
             </div>
           )}
@@ -638,37 +705,36 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
         </div>
 
-        {/* Action Footer */}
-        <div className="p-4 bg-white border-t border-slate-200/80 flex items-center justify-between gap-3">
-          <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>
-              Format d'impression actif :{' '}
-              <strong className="text-slate-800">
-                {selectedFormat === 'a4' ? 'Facture A4' : `Ticket Thermique ${selectedThermalWidth}mm`}
-              </strong>
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+        {/* Actions */}
+        <div className="p-4 sm:px-5 bg-white space-y-3">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 sm:flex-none py-2.5 px-5 rounded-xl border border-slate-300 font-bold text-xs text-slate-700 hover:bg-slate-50 transition active:scale-95"
+              className="py-3 px-5 rounded-2xl bg-slate-100 hover:bg-slate-200 font-bold text-sm text-slate-700 transition active:scale-[0.98]"
             >
               Fermer
             </button>
             <button
               type="button"
               onClick={handlePrint}
-              className="flex-1 sm:flex-none py-2.5 px-6 rounded-xl bg-[#0055b8] hover:bg-blue-700 font-bold text-xs text-white shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 transition active:scale-95"
+              autoFocus
+              className="flex-1 py-3 px-6 rounded-2xl bg-[#0055b8] hover:bg-blue-700 font-bold text-sm text-white shadow-lg shadow-blue-600/25 flex items-center justify-center gap-2 transition active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-blue-500/25"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-[18px] h-[18px]" />
               <span>
-                {selectedFormat === 'a4' ? 'Imprimer Facture A4' : `Imprimer Ticket (${selectedThermalWidth}mm)`}
+                {selectedFormat === 'a4' ? 'Imprimer la facture' : 'Imprimer le ticket'}
               </span>
             </button>
           </div>
+          <p className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>
+              {selectedFormat === 'a4'
+                ? 'Format A4 — choisissez votre imprimante bureau'
+                : `Rouleau ${selectedThermalWidth} mm — imprimante ticket, marges : Aucune`}
+            </span>
+          </p>
         </div>
       </div>
     </div>

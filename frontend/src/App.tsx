@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { lazy } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SyncProvider } from './context/SyncContext';
@@ -20,61 +20,63 @@ import { AppLayout } from './views/layouts';
 // Views matching resources/views/auth/
 import { SplashView } from './views/auth/Splash';
 import { Login } from './views/auth/Login';
-import { Profile } from './views/auth/Profile';
+const Profile = lazy(() => import('./views/auth/Profile').then((m) => ({ default: m.Profile })));
+
+// Pages chargées à la demande (React.lazy) pour alléger le bundle initial
 
 // Views matching resources/views/admin/
-import { DashboardView as AdminDashboard } from './views/admin/dashboard/DashboardView';
-import { ProductsView as AdminProducts } from './views/admin/products/ProductsView';
-import { CategoriesView as AdminCategories } from './views/admin/categories/CategoriesView';
-import { StockView as AdminStock } from './views/admin/stock/StockView';
-import { SuppliersView as AdminSuppliers } from './views/admin/suppliers/SuppliersView';
-import { CustomersView as AdminCustomers } from './views/admin/customers/CustomersView';
-import { SalesView as AdminSales } from './views/admin/sales/SalesView';
-import { PurchasesView as AdminPurchases } from './views/admin/purchases/PurchasesView';
-import { ExpensesView as AdminExpenses } from './views/admin/expenses/ExpensesView';
-import { InventoryView as AdminInventory } from './views/admin/inventory/InventoryView';
-import { DeliveriesView as AdminDeliveries } from './views/admin/deliveries/DeliveriesView';
-import { CashRegistersView as AdminCashRegisters } from './views/admin/cash_registers/CashRegistersView';
-import { UsersView as AdminUsers } from './views/admin/users/UsersView';
-import { UserCreate } from './pages/UserCreate';
-import { UserEdit } from './pages/UserEdit';
-import { ProductCreate } from './pages/ProductCreate';
-import { ProductEdit } from './pages/ProductEdit';
-import { ProductDetail } from './pages/ProductDetail';
-import { CategoryCreate } from './pages/CategoryCreate';
-import { CategoryEdit } from './pages/CategoryEdit';
-import { CategoryDetail } from './pages/CategoryDetail';
-import { SupplierCreate } from './pages/SupplierCreate';
-import { SupplierEdit } from './pages/SupplierEdit';
-import { SupplierDetail } from './pages/SupplierDetail';
-import { CustomerCreate } from './pages/CustomerCreate';
-import { CustomerEdit } from './pages/CustomerEdit';
-import { CustomerDetail } from './pages/CustomerDetail';
-import { StockEntry } from './pages/StockEntry';
-import { StockExit } from './pages/StockExit';
-import { InventoryCreate } from './pages/InventoryCreate';
-import { InventoryDetail } from './pages/InventoryDetail';
-import { PurchaseCreate } from './pages/PurchaseCreate';
-import { PurchaseReception } from './pages/PurchaseReception';
-import { DeliveryCreate } from './pages/DeliveryCreate';
-import { DeliveryDetail } from './pages/DeliveryDetail';
-import { CashRegisterCreate } from './pages/CashRegisterCreate';
-import { CashRegisterEdit } from './pages/CashRegisterEdit';
-import { CashRegisterSessions } from './pages/CashRegisterSessions';
-import { CashSessionBilanZ } from './pages/CashSessionBilanZ';
-import { BarcodeLabels } from './pages/BarcodeLabels';
-import { SettingsView as AdminSettings } from './views/admin/settings/SettingsView';
-import { SyncView as AdminSync } from './views/admin/sync/SyncView';
-import { ReportsView as AdminReports } from './views/admin/reports/ReportsView';
+const AdminDashboard = lazy(() => import('./views/admin/dashboard/DashboardView').then((m) => ({ default: m.DashboardView })));
+const AdminProducts = lazy(() => import('./views/admin/products/ProductsView').then((m) => ({ default: m.ProductsView })));
+const AdminCategories = lazy(() => import('./views/admin/categories/CategoriesView').then((m) => ({ default: m.CategoriesView })));
+const AdminStock = lazy(() => import('./views/admin/stock/StockView').then((m) => ({ default: m.StockView })));
+const AdminSuppliers = lazy(() => import('./views/admin/suppliers/SuppliersView').then((m) => ({ default: m.SuppliersView })));
+const AdminCustomers = lazy(() => import('./views/admin/customers/CustomersView').then((m) => ({ default: m.CustomersView })));
+const AdminSales = lazy(() => import('./views/admin/sales/SalesView').then((m) => ({ default: m.SalesView })));
+const AdminPurchases = lazy(() => import('./views/admin/purchases/PurchasesView').then((m) => ({ default: m.PurchasesView })));
+const AdminExpenses = lazy(() => import('./views/admin/expenses/ExpensesView').then((m) => ({ default: m.ExpensesView })));
+const AdminInventory = lazy(() => import('./views/admin/inventory/InventoryView').then((m) => ({ default: m.InventoryView })));
+const AdminDeliveries = lazy(() => import('./views/admin/deliveries/DeliveriesView').then((m) => ({ default: m.DeliveriesView })));
+const AdminCashRegisters = lazy(() => import('./views/admin/cash_registers/CashRegistersView').then((m) => ({ default: m.CashRegistersView })));
+const AdminUsers = lazy(() => import('./views/admin/users/UsersView').then((m) => ({ default: m.UsersView })));
+const UserCreate = lazy(() => import('./pages/UserCreate').then((m) => ({ default: m.UserCreate })));
+const UserEdit = lazy(() => import('./pages/UserEdit').then((m) => ({ default: m.UserEdit })));
+const ProductCreate = lazy(() => import('./pages/ProductCreate').then((m) => ({ default: m.ProductCreate })));
+const ProductEdit = lazy(() => import('./pages/ProductEdit').then((m) => ({ default: m.ProductEdit })));
+const ProductDetail = lazy(() => import('./pages/ProductDetail').then((m) => ({ default: m.ProductDetail })));
+const CategoryCreate = lazy(() => import('./pages/CategoryCreate').then((m) => ({ default: m.CategoryCreate })));
+const CategoryEdit = lazy(() => import('./pages/CategoryEdit').then((m) => ({ default: m.CategoryEdit })));
+const CategoryDetail = lazy(() => import('./pages/CategoryDetail').then((m) => ({ default: m.CategoryDetail })));
+const SupplierCreate = lazy(() => import('./pages/SupplierCreate').then((m) => ({ default: m.SupplierCreate })));
+const SupplierEdit = lazy(() => import('./pages/SupplierEdit').then((m) => ({ default: m.SupplierEdit })));
+const SupplierDetail = lazy(() => import('./pages/SupplierDetail').then((m) => ({ default: m.SupplierDetail })));
+const CustomerCreate = lazy(() => import('./pages/CustomerCreate').then((m) => ({ default: m.CustomerCreate })));
+const CustomerEdit = lazy(() => import('./pages/CustomerEdit').then((m) => ({ default: m.CustomerEdit })));
+const CustomerDetail = lazy(() => import('./pages/CustomerDetail').then((m) => ({ default: m.CustomerDetail })));
+const StockEntry = lazy(() => import('./pages/StockEntry').then((m) => ({ default: m.StockEntry })));
+const StockExit = lazy(() => import('./pages/StockExit').then((m) => ({ default: m.StockExit })));
+const InventoryCreate = lazy(() => import('./pages/InventoryCreate').then((m) => ({ default: m.InventoryCreate })));
+const InventoryDetail = lazy(() => import('./pages/InventoryDetail').then((m) => ({ default: m.InventoryDetail })));
+const PurchaseCreate = lazy(() => import('./pages/PurchaseCreate').then((m) => ({ default: m.PurchaseCreate })));
+const PurchaseReception = lazy(() => import('./pages/PurchaseReception').then((m) => ({ default: m.PurchaseReception })));
+const DeliveryCreate = lazy(() => import('./pages/DeliveryCreate').then((m) => ({ default: m.DeliveryCreate })));
+const DeliveryDetail = lazy(() => import('./pages/DeliveryDetail').then((m) => ({ default: m.DeliveryDetail })));
+const CashRegisterCreate = lazy(() => import('./pages/CashRegisterCreate').then((m) => ({ default: m.CashRegisterCreate })));
+const CashRegisterEdit = lazy(() => import('./pages/CashRegisterEdit').then((m) => ({ default: m.CashRegisterEdit })));
+const CashRegisterSessions = lazy(() => import('./pages/CashRegisterSessions').then((m) => ({ default: m.CashRegisterSessions })));
+const CashSessionBilanZ = lazy(() => import('./pages/CashSessionBilanZ').then((m) => ({ default: m.CashSessionBilanZ })));
+const BarcodeLabels = lazy(() => import('./pages/BarcodeLabels').then((m) => ({ default: m.BarcodeLabels })));
+const AdminSettings = lazy(() => import('./views/admin/settings/SettingsView').then((m) => ({ default: m.SettingsView })));
+const AdminSync = lazy(() => import('./views/admin/sync/SyncView').then((m) => ({ default: m.SyncView })));
+const AdminReports = lazy(() => import('./views/admin/reports/ReportsView').then((m) => ({ default: m.ReportsView })));
 
 // Views matching resources/views/caissier/
-import { PosView as CaissierPos } from './views/caissier/pos/PosView';
-import { CashSessionView as CaissierSession } from './views/caissier/session/CashSessionView';
-import { CashierSalesView as CaissierSales } from './views/caissier/sales/CashierSalesView';
-import { ReturnsView as CaissierReturns } from './views/caissier/returns/ReturnsView';
+const CaissierPos = lazy(() => import('./views/caissier/pos/PosView').then((m) => ({ default: m.PosView })));
+const CaissierSession = lazy(() => import('./views/caissier/session/CashSessionView').then((m) => ({ default: m.CashSessionView })));
+const CaissierSales = lazy(() => import('./views/caissier/sales/CashierSalesView').then((m) => ({ default: m.CashierSalesView })));
+const CaissierReturns = lazy(() => import('./views/caissier/returns/ReturnsView').then((m) => ({ default: m.ReturnsView })));
 
 // Views matching resources/views/magasinier/
-import { AlertsView as MagasinierAlerts } from './views/magasinier/alerts/AlertsView';
+const MagasinierAlerts = lazy(() => import('./views/magasinier/alerts/AlertsView').then((m) => ({ default: m.AlertsView })));
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
